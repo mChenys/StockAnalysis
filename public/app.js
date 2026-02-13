@@ -1,4 +1,4 @@
-// AI股票分析系统前端逻辑 - 强制全维分析版 (V1.1.1)
+// AI股票分析系统前端逻辑 - 高级时段感知版 (V1.1.2 - 收藏夹UX重构)
 
 let socket;
 let currentModels = [];
@@ -55,8 +55,7 @@ function checkAuth() {
 function showAuthOnly() {
     const sections = document.querySelectorAll('.section');
     sections.forEach(s => s.style.display = 'none');
-    const authSec = document.getElementById('auth-section');
-    if (authSec) authSec.style.display = 'block';
+    document.getElementById('auth-section').style.display = 'block';
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) sidebar.style.display = 'none';
 }
@@ -111,6 +110,12 @@ function setupGlobalEventListeners() {
         saveToFavorites();
     });
 
+    // 收藏夹内部返回按钮
+    document.getElementById('back-to-fav-list-btn')?.addEventListener('click', () => {
+        document.getElementById('favorites-detail-view').style.display = 'none';
+        document.getElementById('favorites-list-view').style.display = 'block';
+    });
+
     document.body.addEventListener('click', async (e) => {
         const target = e.target;
         if (target.matches('#ingest-news-btn') || target.closest('#ingest-news-btn')) ingestNews();
@@ -126,6 +131,8 @@ function setupGlobalEventListeners() {
         if (target.dataset.action === 'run-task') runTaskManual(target.dataset.taskName);
         if (target.dataset.action === 'delete-user') deleteUser(target.dataset.userId);
         if (target.id === 'save-model-btn') saveModel();
+        
+        // 收藏夹内部操作
         if (target.dataset.action === 'view-favorite') viewFavorite(target.dataset.id);
         if (target.dataset.action === 'delete-favorite') deleteFavorite(target.dataset.id);
     });
@@ -143,20 +150,12 @@ function updateModelOptions(provider) {
         ],
         'claude': [
             { value: 'claude-3-opus-20240229', text: 'Claude-3 Opus' }
-        ],
-        'gemini': [
-            { value: 'gemini-pro', text: 'Gemini Pro' }
-        ],
-        'zhipu': [
-            { value: 'glm-4', text: 'GLM-4' }
         ]
     };
 
     const defaultUrls = {
         'openai': 'https://api.openai.com',
-        'claude': 'https://api.anthropic.com',
-        'gemini': 'https://generativelanguage.googleapis.com',
-        'zhipu': 'https://open.bigmodel.cn'
+        'claude': 'https://api.anthropic.com'
     };
 
     if (provider && modelOptions[provider]) {
@@ -184,7 +183,7 @@ async function performAnalysis() {
     spinner?.classList.remove('d-none');
     if (btn) btn.disabled = true;
     favBtn?.classList.add('d-none');
-    resultContainer.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary spinner-border-sm" role="status"></div><span class="ms-2 fw-bold text-primary">正在执行 360° 全维度并发深度研判 (技术+基本+情绪+风险)...</span></div>';
+    resultContainer.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary spinner-border-sm" role="status"></div><span class="ms-2 fw-bold text-primary">正在分析...</span></div>';
 
     try {
         const response = await apiFetch('/api/analysis', {
@@ -206,6 +205,7 @@ async function performAnalysis() {
                 <div><span class="h4 mb-0 fw-bold me-2">${price}</span><span class="fw-bold ${colorClass}">${parseFloat(change) >= 0 ? '+' : ''}${change}%</span></div>
             </div>`;
 
+            resultContainer.style.whiteSpace = 'normal';
             resultContainer.innerHTML = headerHtml + `<div class="p-1" style="font-size: 0.9rem; line-height: 1.8; color: #111;">${parseMarkdownToHtml(response.analysis)}</div>`;
         } else {
             resultContainer.innerHTML = `<div class="alert alert-warning py-2">${response.message}</div>`;
@@ -231,8 +231,9 @@ async function saveToFavorites() {
             })
         });
         if (res.success) {
-            showNotification('成功', '研报已存入收藏夹', 'success');
-            document.getElementById('save-to-favorites-btn')?.classList.add('btn-warning');
+            showNotification('成功', '已存入收藏夹', 'success');
+            // 收藏成功后隐藏按钮，防止重复收藏
+            document.getElementById('save-to-favorites-btn')?.classList.add('d-none');
         }
     } catch (e) {
         showNotification('错误', '收藏失败', 'danger');
@@ -242,10 +243,15 @@ async function saveToFavorites() {
 async function loadFavorites() {
     const container = document.getElementById('favorites-list-container');
     if (!container) return;
+    
+    // 每次进入收藏夹，重置为列表视图
+    document.getElementById('favorites-detail-view').style.display = 'none';
+    document.getElementById('favorites-list-view').style.display = 'block';
+
     try {
         const res = await apiFetch('/api/favorites');
         if (res.data.length === 0) {
-            container.innerHTML = '<div class="col-12 text-center py-5 text-muted"><h4>收藏夹是空的</h4><p>分析并收藏您的第一篇研报吧！</p></div>';
+            container.innerHTML = '<div class="col-12 text-center py-5 text-muted"><h4>收藏夹是空的</h4></div>';
             return;
         }
         container.innerHTML = res.data.map(f => `
@@ -273,18 +279,20 @@ async function viewFavorite(id) {
         const res = await apiFetch('/api/favorites');
         const fav = res.data.find(i => i._id === id);
         if (fav) {
-            showSection('analysis');
-            const resultContainer = document.getElementById('analysis-result-content');
+            // 切换到详情视图（不离开收藏夹模块）
+            document.getElementById('favorites-list-view').style.display = 'none';
+            document.getElementById('favorites-detail-view').style.display = 'block';
+            
+            const detailContainer = document.getElementById('fav-detail-content');
             const raw = fav.analysisData || {};
             const colorClass = parseFloat(raw.changePercent) >= 0 ? 'text-success' : 'text-danger';
 
             let headerHtml = `<div class="mb-3 px-3 py-2 rounded border bg-white d-flex justify-content-between align-items-center shadow-sm">
                 <div><span class="h5 mb-0 fw-bold me-2">${fav.symbol}</span><span class="badge bg-secondary" style="font-size: 0.7rem;">历史快照</span></div>
-                <div><span class="h4 mb-0 fw-bold me-2">${raw.currentPrice || 'N/A'}</span><span class="fw-bold ${colorClass}">${raw.changePercent || '0.00'}%</span></div>
+                <div><span class="h4 mb-0 fw-bold me-2">${raw.currentPrice || 'N/A'}</span><span class="fw-bold ${colorClass}">${parseFloat(raw.changePercent) >= 0 ? '+' : ''}${raw.changePercent || '0.00'}%</span></div>
             </div>`;
 
-            resultContainer.innerHTML = headerHtml + `<div class="p-1" style="font-size: 0.9rem; line-height: 1.8; color: #111;">${parseMarkdownToHtml(fav.content)}</div>`;
-            document.getElementById('save-to-favorites-btn')?.classList.add('d-none');
+            detailContainer.innerHTML = headerHtml + `<div class="p-1" style="font-size: 0.9rem; line-height: 1.8; color: #111;">${parseMarkdownToHtml(fav.content)}</div>`;
         }
     } catch (e) { console.error(e); }
 }
@@ -460,7 +468,7 @@ async function loadSchedulerInterface() {
                 <td>${name}</td>
                 <td><code>${task.schedule}</code></td>
                 <td><span class="badge ${result.running ? 'bg-success' : 'bg-danger'}">${result.running ? '运行中' : '停止'}</span></td>
-                <td>${task.lastRun ? new Date(task.lastRun).toLocaleString() : '从不'}</td>
+                <td>${task.lastRun ? new Date(task.lastRun).toLocaleString() : '从人'}</td>
                 <td><button class="btn btn-sm btn-link" data-action="run-task" data-task-name="${name}">执行</button></td>
             </tr>
         `).join('');

@@ -121,8 +121,26 @@
 
                 <!-- 收藏夹 -->
                 <div id="favorites" class="section mt-3" style="display: none;">
-                    <div class="border-bottom pb-2 mb-3"><h2>我的收藏夹</h2></div>
-                    <div id="favorites-list-container" class="row"></div>
+                    <!-- 列表页视图 -->
+                    <div id="favorites-list-view">
+                        <div class="border-bottom pb-2 mb-3"><h2>我的收藏夹</h2></div>
+                        <div id="favorites-list-container" class="row"></div>
+                    </div>
+
+                    <!-- 详情页视图 (原地查看，不跳转) -->
+                    <div id="favorites-detail-view" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                            <h2 id="fav-detail-title">研报详情</h2>
+                            <button class="btn btn-outline-secondary btn-sm" id="back-to-fav-list-btn">
+                                <i class="bi bi-arrow-left"></i> 返回收藏列表
+                            </button>
+                        </div>
+                        <div class="card card-custom">
+                            <div class="card-body p-0">
+                                <div id="fav-detail-content" class="p-3"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 定时任务 -->
@@ -160,6 +178,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="app.js?v=1.1.1"></script>
+    <script src="app.js?v=1.1.2"></script>
 </body>
 </html>
