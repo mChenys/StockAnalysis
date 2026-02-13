@@ -7,142 +7,102 @@ const newsProcessor = require('../analyzer/newsProcessor');
 class NewsCrawler {
     constructor() {
         this.sources = {
+            cls: {
+                name: '财联社7x24',
+                url: 'https://www.cls.cn/nodeapi/telegraphList',
+                type: 'api',
+                limit: 20
+            },
+            eastmoney: {
+                name: '东方财富7x24',
+                url: 'https://newsapi.eastmoney.com/kuaixun/v1/getlist_102_6_1_50.html',
+                type: 'api',
+                limit: 20
+            },
             yahoo: {
-                name: 'Yahoo Finance News',
+                name: 'Yahoo Finance',
                 url: 'https://finance.yahoo.com/rss/topstories',
-                type: 'rss'
-            },
-            reuters: {
-                name: 'Reuters Business',
-                url: 'https://www.reuters.com/business/',
-                type: 'html'
-            },
-            mock: {
-                name: 'Mock News Service',
-                url: 'mock://news',
-                type: 'mock'
+                type: 'rss',
+                limit: 10
             }
         };
     }
 
     async fetchAll() {
-        logger.info('Starting news ingestion from all sources...');
-        const results = [];
-        for (const [id, config] of Object.entries(this.sources)) {
-            try {
-                const items = await this.fetchSource(id, config);
-                results.push(...items);
-            } catch (error) {
-                logger.error(`Failed to fetch from ${config.name}:`, error);
-            }
-        }
-        return results;
+        logger.info('🚀 Starting high-speed news ingestion...');
+        const fetchTasks = Object.entries(this.sources).map(([id, config]) => 
+            this.fetchSource(id, config).catch(err => {
+                logger.error(`Source ${id} failed: ${err.message}`);
+                return [];
+            })
+        );
+
+        const results = await Promise.all(fetchTasks);
+        const allItems = results.flat();
+        
+        return await this.saveNews(allItems);
     }
 
     async fetchSource(sourceId, config) {
-        switch (config.type) {
-            case 'mock':
-                return this.fetchMockNews(sourceId);
-            case 'rss':
-                return this.fetchRSSNews(sourceId, config.url);
-            case 'html':
-                return this.fetchHTMLNews(sourceId, config.url);
-            default:
-                throw new Error(`Unsupported source type: ${config.type}`);
-        }
+        if (sourceId === 'cls') return this.fetchCLS(config);
+        if (sourceId === 'eastmoney') return this.fetchEastMoney(config);
+        if (config.type === 'rss') return this.fetchRSSNews(sourceId, config.url, config.limit);
+        return [];
     }
 
-    async fetchMockNews(sourceId) {
-        const mockNews = [
-            {
-                sourceId,
-                url: 'https://example.com/news/1',
-                title: 'Fed signals potential rate cuts as inflation cools',
-                content: 'Federal Reserve officials suggested that rate cuts could be on the horizon if inflation continues its downward trend toward the 2% target.',
-                publishedAt: new Date(),
-                relatedSymbols: ['SPY', 'QQQ']
-            },
-            {
-                sourceId,
-                url: 'https://example.com/news/2',
-                title: 'Tech giants rally on strong earnings outlook',
-                content: 'Major technology companies seen a boost in share prices following optimistic forward-looking guidance in recent quarterly reports.',
-                publishedAt: new Date(Date.now() - 3600000),
-                relatedSymbols: ['AAPL', 'MSFT', 'NVDA']
-            }
-        ];
-        return mockNews;
-    }
-
-    async fetchRSSNews(sourceId, url) {
+    async fetchCLS(config) {
         try {
-            const response = await axios.get(url);
-            const $ = cheerio.load(response.data, { xmlMode: true });
+            const res = await axios.get(`${config.url}?last_time=${Math.floor(Date.now()/1000)}&rn=${config.limit}`);
+            return res.data.data.roll_data.map(item => ({
+                sourceId: 'CLS',
+                url: `https://www.cls.cn/detail/${item.id}`,
+                title: item.title || item.content.substring(0, 50),
+                content: item.content,
+                publishedAt: new Date(item.ctime * 1000),
+                relatedSymbols: []
+            }));
+        } catch (e) { return []; }
+    }
+
+    async fetchEastMoney(config) {
+        try {
+            const res = await axios.get(config.url);
+            return res.data.LivesList.map(item => ({
+                sourceId: 'EastMoney',
+                url: item.Url,
+                title: item.Title,
+                content: item.Digest,
+                publishedAt: new Date(item.ShowTime),
+                relatedSymbols: []
+            }));
+        } catch (e) { return []; }
+    }
+
+    async fetchRSSNews(sourceId, url, limit) {
+        try {
+            const res = await axios.get(url);
+            const $ = cheerio.load(res.data, { xmlMode: true });
             const items = [];
-            
             $('item').each((i, el) => {
-                if (i >= 10) return;
-                const title = $(el).find('title').text();
-                const link = $(el).find('link').text();
-                const content = $(el).find('description').text();
-                const pubDate = $(el).find('pubDate').text();
-                
+                if (i >= limit) return;
                 items.push({
                     sourceId,
-                    url: link,
-                    title,
-                    content: content.replace(/<[^>]*>/g, ''),
-                    publishedAt: new Date(pubDate),
+                    url: $(el).find('link').text(),
+                    title: $(el).find('title').text(),
+                    content: $(el).find('description').text().replace(/<[^>]*>/g, ''),
+                    publishedAt: new Date($(el).find('pubDate').text()),
                     relatedSymbols: []
                 });
             });
-            
             return items;
-        } catch (error) {
-            logger.error(`Error fetching RSS from ${url}:`, error);
-            return [];
-        }
-    }
-
-    async fetchHTMLNews(sourceId, url) {
-        try {
-            const response = await axios.get(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-            });
-            const $ = cheerio.load(response.data);
-            const items = [];
-            
-            $('article').each((i, el) => {
-                if (i >= 5) return;
-                const title = $(el).find('h3').text().trim();
-                const link = $(el).find('a').attr('href');
-                const fullUrl = link?.startsWith('http') ? link : `https://www.reuters.com${link}`;
-                
-                if (title && link) {
-                    items.push({
-                        sourceId,
-                        url: fullUrl,
-                        title,
-                        content: title,
-                        publishedAt: new Date(),
-                        relatedSymbols: []
-                    });
-                }
-            });
-            
-            return items;
-        } catch (error) {
-            logger.error(`Error fetching HTML from ${url}:`, error);
-            return [];
-        }
+        } catch (e) { return []; }
     }
 
     async saveNews(newsItems) {
         let savedCount = 0;
         let skippedCount = 0;
 
+        // 批量情感评估与去重
         for (const item of newsItems) {
             try {
                 const exists = await NewsItem.findOne({ url: item.url });
@@ -152,15 +112,20 @@ class NewsCrawler {
                 }
 
                 const news = new NewsItem(item);
-                await newsProcessor.extractTopics(news);
+                // 1. 提取主题 2. 评估情感 (并行执行)
+                await Promise.all([
+                    newsProcessor.extractTopics(news),
+                    newsProcessor.analyzeSentiment(news)
+                ]);
+
                 await news.save();
                 savedCount++;
             } catch (error) {
-                logger.error(`Error saving news item ${item.url}:`, error);
+                logger.debug(`Save failed: ${error.message}`);
             }
         }
 
-        logger.info(`News ingestion complete. Saved: ${savedCount}, Skipped: ${skippedCount}`);
+        logger.info(`✅ Ingestion Complete: Saved ${savedCount}, Skipped ${skippedCount}`);
         return { savedCount, skippedCount };
     }
 }

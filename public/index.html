@@ -3,115 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 股票深度研判系统</title>
+    <title>股票 AI 智能研判系统</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        .sidebar { min-height: 100vh; background: linear-gradient(135deg, #1a2a6c 0%, #b21f1f 50%, #fdbb2d 100%); }
-        .card-custom { box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.05); border: 0; }
-        .status-badge { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        :root {
+            --primary-color: #4361ee;
+            --sidebar-bg: #f8f9fa;
+        }
+        body { background-color: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        .sidebar { min-height: 100vh; background-color: white; border-right: 1px solid #dee2e6; padding: 0; }
+        .sidebar .nav-link { color: #333; padding: 0.8rem 1.5rem; border-radius: 0; margin-bottom: 2px; }
+        .sidebar .nav-link:hover { background-color: #e9ecef; }
+        .sidebar .nav-link.active { background-color: var(--primary-color); color: white !important; }
+        .sidebar .nav-link i { margin-right: 10px; }
+        .card-custom { border: none; border-radius: 10px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); margin-bottom: 1.5rem; }
+        .section-header { border-bottom: 2px solid var(--primary-color); padding-bottom: 0.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+        .status-badge { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
         .status-active { background-color: #28a745; }
         .status-inactive { background-color: #dc3545; }
-        .ai-report-body h4, .ai-report-body h5, .ai-report-body h6 { color: #0056b3; font-weight: bold; }
-        .ai-report-body strong { color: #0d6efd; }
+        .ai-report-body { font-size: 14px; line-height: 1.8; color: #333; }
+        .ai-report-body h2 { color: var(--primary-color); font-size: 18px; font-weight: bold; margin-top: 25px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        .price-bar { background-color: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
     </style>
 </head>
 <body>
     <div class="container-fluid">
         <div class="row">
-            <!-- 侧边栏 -->
-            <nav class="col-md-3 col-lg-2 d-md-block bg-dark sidebar collapse p-0">
-                <div class="position-sticky pt-3">
-                    <h5 class="text-white text-center mb-4"><i class="bi bi-robot"></i> AI 分析系统</h5>
-                    <ul class="nav flex-column px-3" id="main-nav">
-                        <li class="nav-item mb-2"><a class="nav-link text-white active" href="#" data-section="dashboard"><i class="bi bi-speedometer2"></i> 仪表盘</a></li>
-                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="models"><i class="bi bi-cpu"></i> 模型管理</a></li>
-                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="analysis"><i class="bi bi-graph-up"></i> 智能分析</a></li>
-                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="favorites"><i class="bi bi-star-fill text-warning"></i> 我的收藏</a></li>
-                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="news"><i class="bi bi-newspaper"></i> 财经新闻</a></li>
-                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="scheduler"><i class="bi bi-clock"></i> 定时任务</a></li>
-                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="notifications"><i class="bi bi-bell"></i> 推送设置</a></li>
-                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="users"><i class="bi bi-people"></i> 用户管理</a></li>
+            <!-- 侧边栏导航 -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-4">
+                    <h5 class="text-center mb-4 text-primary fw-bold"><i class="bi bi-robot"></i> AI 股票系统</h5>
+                    <ul class="nav flex-column" id="main-nav">
+                        <li class="nav-item"><a class="nav-link active" href="#" data-section="dashboard"><i class="bi bi-speedometer2"></i> 仪表盘</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="models"><i class="bi bi-cpu"></i> 模型管理</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="analysis"><i class="bi bi-graph-up"></i> 智能分析</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="favorites"><i class="bi bi-star-fill text-warning"></i> 我的收藏</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="news"><i class="bi bi-newspaper"></i> 财经新闻</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="scheduler"><i class="bi bi-clock"></i> 定时任务</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="notifications"><i class="bi bi-bell"></i> 推送设置</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="users"><i class="bi bi-people"></i> 用户管理</a></li>
                     </ul>
                 </div>
             </nav>
 
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-                <!-- 登录注册 -->
-                <div id="auth-section" class="section mt-5" style="display: none;">
-                    <div class="row justify-content-center">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+                <!-- 登录注册面板 -->
+                <div id="auth-section" class="section" style="display: none;">
+                    <div class="row justify-content-center mt-5">
                         <div class="col-md-5">
-                            <div class="card card-custom">
-                                <div class="card-header bg-primary text-white"><h5 class="mb-0" id="auth-title">登录</h5></div>
-                                <div class="card-body">
-                                    <form id="loginForm">
-                                        <div class="mb-3"><label class="form-label">用户名/邮箱</label><input type="text" class="form-control" name="username" required></div>
-                                        <div class="mb-3"><label class="form-label">密码</label><input type="password" class="form-control" name="password" required></div>
-                                        <button type="submit" class="btn btn-primary w-100">登录</button>
-                                        <div class="mt-3 text-center"><a href="#" id="to-register-link">注册新账号</a></div>
-                                    </form>
-                                    <form id="registerForm" style="display: none;">
-                                        <div class="mb-3"><label class="form-label">用户名</label><input type="text" class="form-control" name="username" required></div>
-                                        <div class="mb-3"><label class="form-label">邮箱</label><input type="email" class="form-control" name="email" required></div>
-                                        <div class="mb-3"><label class="form-label">密码</label><input type="password" class="form-control" name="password" required></div>
-                                        <button type="submit" class="btn btn-success w-100">立即注册</button>
-                                        <div class="mt-3 text-center"><a href="#" id="to-login-link">返回登录</a></div>
-                                    </form>
-                                </div>
+                            <div class="card card-custom p-4">
+                                <h3 id="auth-title" class="text-center mb-4">欢迎回来</h3>
+                                <form id="loginForm">
+                                    <div class="mb-3"><input type="text" class="form-control" name="username" placeholder="用户名或邮箱" required></div>
+                                    <div class="mb-3"><input type="password" class="form-control" name="password" placeholder="请输入密码" required></div>
+                                    <button type="submit" class="btn btn-primary w-100">立即登录</button>
+                                    <div class="mt-3 text-center"><a href="#" id="to-register-link" class="small">没有账号？点击注册</a></div>
+                                </form>
+                                <form id="registerForm" style="display: none;">
+                                    <div class="mb-3"><input type="text" class="form-control" name="username" placeholder="用户名" required></div>
+                                    <div class="mb-3"><input type="email" class="form-control" name="email" placeholder="电子邮箱" required></div>
+                                    <div class="mb-3"><input type="password" class="form-control" name="password" placeholder="密码 (至少6位)" required></div>
+                                    <button type="submit" class="btn btn-success w-100">创建账号</button>
+                                    <div class="mt-3 text-center"><a href="#" id="to-login-link" class="small">已有账号？返回登录</a></div>
+                                </form>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 仪表盘 -->
-                <div id="dashboard" class="section mt-3">
-                    <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
-                        <h2 class="h2">仪表盘</h2>
-                        <button class="btn btn-sm btn-outline-danger" id="logout-btn">安全退出</button>
+                <!-- 仪表盘模块 -->
+                <div id="dashboard" class="section animate-reveal">
+                    <div class="section-header">
+                        <h2 class="h3">管理概览</h2>
+                        <button class="btn btn-outline-danger btn-sm" id="logout-btn">退出登录</button>
                     </div>
-                    <div class="row mb-4">
-                        <div class="col-xl-3 col-md-6 mb-3"><div class="card card-custom"><div class="card-body">模型数量: <span class="h4 mb-0" id="active-models-count">0</span></div></div></div>
-                        <div class="col-xl-3 col-md-6 mb-3"><div class="card card-custom"><div class="card-body">今日分析: <span class="h4 mb-0" id="today-analysis-count">0</span></div></div></div>
-                    </div>
-                </div>
-
-                <!-- 模型管理 -->
-                <div id="models" class="section mt-3" style="display: none;">
-                    <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
-                        <h2>AI模型管理</h2>
-                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModelModal"><i class="bi bi-plus"></i> 添加配置</button>
-                    </div>
-                    <div class="row" id="models-container"></div>
-                </div>
-
-                <!-- 智能分析 -->
-                <div id="analysis" class="section mt-3" style="display: none;">
-                    <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom"><h2>智能全维分析</h2></div>
                     <div class="row">
-                        <div class="col-md-3">
-                            <div class="card card-custom mb-4">
-                                <div class="card-header bg-dark text-white">配置选项</div>
-                                <div class="card-body">
-                                    <form id="analysis-form">
-                                        <div class="mb-3"><label class="form-label">股票代码</label><input type="text" class="form-control" id="analysis-symbol" placeholder="NVDA" required></div>
-                                        <div class="mb-3"><label class="form-label">分析模型</label><select class="form-select" id="analysis-model" required></select></div>
-                                        <button type="submit" class="btn btn-primary w-100" id="start-analysis-btn">
-                                            <span class="spinner-border spinner-border-sm d-none" id="analysis-spinner"></span> 开始全维研判
-                                        </button>
-                                    </form>
-                                    <div class="small text-muted mt-3"><i class="bi bi-shield-check"></i> 系统将并行调用四大核心维度进行多路 AI 联合建模分析。</div>
-                                </div>
+                        <div class="col-md-3 mb-4"><div class="card card-custom"><div class="card-body"><p class="text-muted small mb-1">活跃AI模型</p><h4 class="mb-0" id="active-models-count">0</h4></div></div></div>
+                        <div class="col-md-3 mb-4"><div class="card card-custom"><div class="card-body"><p class="text-muted small mb-1">今日分析次数</p><h4 class="mb-0" id="today-analysis-count">0</h4></div></div></div>
+                    </div>
+                </div>
+
+                <!-- 智能分析模块 -->
+                <div id="analysis" class="section" style="display: none;">
+                    <div class="section-header"><h2 class="h3">AI 智能全维研判</h2></div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card card-custom p-3">
+                                <form id="analysis-form">
+                                    <div class="mb-3"><label class="form-label small fw-bold">股票代码</label><input type="text" class="form-control" id="analysis-symbol" placeholder="如: NVDA" required></div>
+                                    <div class="mb-3"><label class="form-label small fw-bold">分析模型</label><select class="form-select" id="analysis-model" required></select></div>
+                                    <div class="alert alert-light border small py-2"><i class="bi bi-info-circle"></i> 系统将并行执行 9 大维度（技术、基本面、情绪、风险、宏观、竞争等）的深度分析。</div>
+                                    <button type="submit" class="btn btn-primary w-100" id="start-analysis-btn">
+                                        <span class="spinner-border spinner-border-sm d-none" id="analysis-spinner"></span> 开始全维研判
+                                    </button>
+                                </form>
                             </div>
                         </div>
-                        <div class="col-md-9">
+                        <div class="col-md-8">
                             <div class="card card-custom">
-                                <div class="card-header d-flex justify-content-between align-items-center">
-                                    <span>深度研报结果</span>
+                                <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold">研报详情</span>
                                     <button class="btn btn-sm btn-outline-warning d-none" id="save-to-favorites-btn"><i class="bi bi-star"></i> 收藏</button>
                                 </div>
-                                <div class="card-body p-0">
-                                    <div id="analysis-result-content" class="p-3" style="min-height: 500px;">
-                                        <div class="text-center text-muted mt-5"><i class="bi bi-lightning-charge" style="font-size: 3rem;"></i><p>请输入代码开始全维度分析。</p></div>
+                                <div class="card-body">
+                                    <div id="analysis-result-content">
+                                        <div class="text-center text-muted py-5"><i class="bi bi-clipboard-data" style="font-size: 3rem;"></i><p class="mt-2">请在左侧配置参数并启动分析</p></div>
                                     </div>
                                 </div>
                             </div>
@@ -119,65 +116,51 @@
                     </div>
                 </div>
 
-                <!-- 收藏夹 -->
-                <div id="favorites" class="section mt-3" style="display: none;">
-                    <!-- 列表页视图 -->
+                <!-- 收藏夹模块 -->
+                <div id="favorites" class="section" style="display: none;">
                     <div id="favorites-list-view">
-                        <div class="border-bottom pb-2 mb-3"><h2>我的收藏夹</h2></div>
+                        <div class="section-header"><h2>我的收藏</h2></div>
                         <div id="favorites-list-container" class="row"></div>
                     </div>
-
-                    <!-- 详情页视图 (原地查看，不跳转) -->
                     <div id="favorites-detail-view" style="display: none;">
-                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                        <div class="section-header">
                             <h2 id="fav-detail-title">研报详情</h2>
-                            <button class="btn btn-outline-secondary btn-sm" id="back-to-fav-list-btn">
-                                <i class="bi bi-arrow-left"></i> 返回收藏列表
-                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" id="back-to-fav-list-btn"><i class="bi bi-arrow-left"></i> 返回列表</button>
                         </div>
-                        <div class="card card-custom">
-                            <div class="card-body p-0">
-                                <div id="fav-detail-content" class="p-3"></div>
-                            </div>
-                        </div>
+                        <div class="card card-custom p-4"><div id="fav-detail-content"></div></div>
                     </div>
                 </div>
 
-                <!-- 定时任务 -->
-                <div id="scheduler" class="section mt-3" style="display: none;">
-                    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
-                        <h2>自动调度</h2>
-                        <div class="btn-group"><button class="btn btn-outline-success" data-action="start-scheduler">启动</button><button class="btn btn-outline-danger" data-action="stop-scheduler">停止</button></div>
-                    </div>
-                    <div class="table-responsive"><table class="table"><tbody id="tasks-table-body"></tbody></table></div>
+                <!-- 模型管理模块 -->
+                <div id="models" class="section" style="display: none;">
+                    <div class="section-header"><h2>AI模型集群</h2><button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addModelModal"><i class="bi bi-plus"></i> 添加模型</button></div>
+                    <div class="row" id="models-container"></div>
                 </div>
-
-                <!-- 其他模块省略 -->
             </main>
         </div>
     </div>
 
-    <!-- 添加模型Modal -->
+    <!-- 添加模型弹窗 -->
     <div class="modal fade" id="addModelModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
-        <div class="modal-header"><h5 class="modal-title">添加AI模型配置</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
+        <div class="modal-header"><h5 class="modal-title">配置新AI模型</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body p-4">
             <form id="addModelForm">
-                <div class="mb-3"><label class="form-label">名称</label><input type="text" class="form-control" name="name" required></div>
-                <div class="mb-3"><label class="form-label">提供商</label><select class="form-select" name="provider" id="providerSelect" required>
+                <div class="mb-3"><label class="form-label">模型显示名称</label><input type="text" class="form-control" name="name" placeholder="例如: 生产环境-NVIDIA-GLM" required></div>
+                <div class="mb-3"><label class="form-label">服务提供商</label><select class="form-select" name="provider" id="providerSelect" required>
                     <option value="">请选择...</option><option value="openai">OpenAI / NVIDIA NIM</option><option value="claude">Claude</option>
                 </select></div>
                 <div class="mb-3"><label class="form-label">API Key</label><input type="password" class="form-control" name="apiKey" required></div>
-                <div class="mb-3"><label class="form-label">Base URL</label><input type="url" class="form-control" name="baseUrl" id="baseUrl"></div>
-                <div class="mb-3"><label class="form-label">模型 ID</label><select class="form-select" name="model" id="modelSelect" required></select></div>
-                <div class="row"><div class="col-6"><label class="form-label">Tokens</label><input type="number" class="form-control" name="maxTokens" value="4000"></div><div class="col-6"><label class="form-label">Temp</label><input type="number" class="form-control" name="temperature" value="0.7" step="0.1"></div></div>
-                <div class="mt-3"><input class="form-check-input" type="checkbox" name="active" checked> 立即启用</div>
+                <div class="mb-3"><label class="form-label">API 基础 URL</label><input type="url" class="form-control" name="baseUrl" id="baseUrl" placeholder="https://api.openai.com/v1"></div>
+                <div class="mb-3"><label class="form-label">模型标识 (Model ID)</label><select class="form-select" name="model" id="modelSelect" required></select></div>
+                <div class="row"><div class="col-6"><label class="form-label">最大 Token 数</label><input type="number" class="form-control" name="maxTokens" value="4000"></div><div class="col-6"><label class="form-label">温度参数 (Temp)</label><input type="number" class="form-control" name="temperature" value="0.7" step="0.1" min="0" max="2"></div></div>
+                <div class="form-check mt-3"><input class="form-check-input" type="checkbox" name="active" checked> <label class="form-check-label">立即激活此模型</label></div>
             </form>
         </div>
-        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button type="button" class="btn btn-primary" id="save-model-btn">保存并验证</button></div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button type="button" class="btn btn-primary" id="save-model-btn">保存并启用</button></div>
     </div></div></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="app.js?v=1.1.2"></script>
+    <script src="app.js?v=1.1.5"></script>
 </body>
 </html>
