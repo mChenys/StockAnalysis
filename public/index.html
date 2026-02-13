@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 股票深度研判系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .sidebar { min-height: 100vh; background: linear-gradient(135deg, #1a2a6c 0%, #b21f1f 50%, #fdbb2d 100%); }
+        .card-custom { box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.05); border: 0; }
+        .status-badge { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .status-active { background-color: #28a745; }
+        .status-inactive { background-color: #dc3545; }
+        .ai-report-body h4, .ai-report-body h5, .ai-report-body h6 { color: #0056b3; font-weight: bold; }
+        .ai-report-body strong { color: #0d6efd; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 侧边栏 -->
+            <nav class="col-md-3 col-lg-2 d-md-block bg-dark sidebar collapse p-0">
+                <div class="position-sticky pt-3">
+                    <h5 class="text-white text-center mb-4"><i class="bi bi-robot"></i> AI 分析系统</h5>
+                    <ul class="nav flex-column px-3" id="main-nav">
+                        <li class="nav-item mb-2"><a class="nav-link text-white active" href="#" data-section="dashboard"><i class="bi bi-speedometer2"></i> 仪表盘</a></li>
+                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="models"><i class="bi bi-cpu"></i> 模型管理</a></li>
+                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="analysis"><i class="bi bi-graph-up"></i> 智能分析</a></li>
+                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="favorites"><i class="bi bi-star-fill text-warning"></i> 我的收藏</a></li>
+                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="news"><i class="bi bi-newspaper"></i> 财经新闻</a></li>
+                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="scheduler"><i class="bi bi-clock"></i> 定时任务</a></li>
+                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="notifications"><i class="bi bi-bell"></i> 推送设置</a></li>
+                        <li class="nav-item mb-2"><a class="nav-link text-white" href="#" data-section="users"><i class="bi bi-people"></i> 用户管理</a></li>
+                    </ul>
+                </div>
+            </nav>
+
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <!-- 登录注册 -->
+                <div id="auth-section" class="section mt-5" style="display: none;">
+                    <div class="row justify-content-center">
+                        <div class="col-md-5">
+                            <div class="card card-custom">
+                                <div class="card-header bg-primary text-white"><h5 class="mb-0" id="auth-title">登录</h5></div>
+                                <div class="card-body">
+                                    <form id="loginForm">
+                                        <div class="mb-3"><label class="form-label">用户名/邮箱</label><input type="text" class="form-control" name="username" required></div>
+                                        <div class="mb-3"><label class="form-label">密码</label><input type="password" class="form-control" name="password" required></div>
+                                        <button type="submit" class="btn btn-primary w-100">登录</button>
+                                        <div class="mt-3 text-center"><a href="#" id="to-register-link">注册新账号</a></div>
+                                    </form>
+                                    <form id="registerForm" style="display: none;">
+                                        <div class="mb-3"><label class="form-label">用户名</label><input type="text" class="form-control" name="username" required></div>
+                                        <div class="mb-3"><label class="form-label">邮箱</label><input type="email" class="form-control" name="email" required></div>
+                                        <div class="mb-3"><label class="form-label">密码</label><input type="password" class="form-control" name="password" required></div>
+                                        <button type="submit" class="btn btn-success w-100">立即注册</button>
+                                        <div class="mt-3 text-center"><a href="#" id="to-login-link">返回登录</a></div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 仪表盘 -->
+                <div id="dashboard" class="section mt-3">
+                    <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+                        <h2 class="h2">仪表盘</h2>
+                        <button class="btn btn-sm btn-outline-danger" id="logout-btn">安全退出</button>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-xl-3 col-md-6 mb-3"><div class="card card-custom"><div class="card-body">模型数量: <span class="h4 mb-0" id="active-models-count">0</span></div></div></div>
+                        <div class="col-xl-3 col-md-6 mb-3"><div class="card card-custom"><div class="card-body">今日分析: <span class="h4 mb-0" id="today-analysis-count">0</span></div></div></div>
+                    </div>
+                </div>
+
+                <!-- 模型管理 -->
+                <div id="models" class="section mt-3" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+                        <h2>AI模型管理</h2>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModelModal"><i class="bi bi-plus"></i> 添加配置</button>
+                    </div>
+                    <div class="row" id="models-container"></div>
+                </div>
+
+                <!-- 智能分析 -->
+                <div id="analysis" class="section mt-3" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom"><h2>智能全维分析</h2></div>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="card card-custom mb-4">
+                                <div class="card-header bg-dark text-white">配置选项</div>
+                                <div class="card-body">
+                                    <form id="analysis-form">
+                                        <div class="mb-3"><label class="form-label">股票代码</label><input type="text" class="form-control" id="analysis-symbol" placeholder="NVDA" required></div>
+                                        <div class="mb-3"><label class="form-label">分析模型</label><select class="form-select" id="analysis-model" required></select></div>
+                                        <button type="submit" class="btn btn-primary w-100" id="start-analysis-btn">
+                                            <span class="spinner-border spinner-border-sm d-none" id="analysis-spinner"></span> 开始全维研判
+                                        </button>
+                                    </form>
+                                    <div class="small text-muted mt-3"><i class="bi bi-shield-check"></i> 系统将并行调用四大核心维度进行多路 AI 联合建模分析。</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-9">
+                            <div class="card card-custom">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span>深度研报结果</span>
+                                    <button class="btn btn-sm btn-outline-warning d-none" id="save-to-favorites-btn"><i class="bi bi-star"></i> 收藏</button>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div id="analysis-result-content" class="p-3" style="min-height: 500px;">
+                                        <div class="text-center text-muted mt-5"><i class="bi bi-lightning-charge" style="font-size: 3rem;"></i><p>请输入代码开始全维度分析。</p></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 收藏夹 -->
+                <div id="favorites" class="section mt-3" style="display: none;">
+                    <div class="border-bottom pb-2 mb-3"><h2>我的收藏夹</h2></div>
+                    <div id="favorites-list-container" class="row"></div>
+                </div>
+
+                <!-- 定时任务 -->
+                <div id="scheduler" class="section mt-3" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                        <h2>自动调度</h2>
+                        <div class="btn-group"><button class="btn btn-outline-success" data-action="start-scheduler">启动</button><button class="btn btn-outline-danger" data-action="stop-scheduler">停止</button></div>
+                    </div>
+                    <div class="table-responsive"><table class="table"><tbody id="tasks-table-body"></tbody></table></div>
+                </div>
+
+                <!-- 其他模块省略 -->
+            </main>
+        </div>
+    </div>
+
+    <!-- 添加模型Modal -->
+    <div class="modal fade" id="addModelModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">添加AI模型配置</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+            <form id="addModelForm">
+                <div class="mb-3"><label class="form-label">名称</label><input type="text" class="form-control" name="name" required></div>
+                <div class="mb-3"><label class="form-label">提供商</label><select class="form-select" name="provider" id="providerSelect" required>
+                    <option value="">请选择...</option><option value="openai">OpenAI / NVIDIA NIM</option><option value="claude">Claude</option>
+                </select></div>
+                <div class="mb-3"><label class="form-label">API Key</label><input type="password" class="form-control" name="apiKey" required></div>
+                <div class="mb-3"><label class="form-label">Base URL</label><input type="url" class="form-control" name="baseUrl" id="baseUrl"></div>
+                <div class="mb-3"><label class="form-label">模型 ID</label><select class="form-select" name="model" id="modelSelect" required></select></div>
+                <div class="row"><div class="col-6"><label class="form-label">Tokens</label><input type="number" class="form-control" name="maxTokens" value="4000"></div><div class="col-6"><label class="form-label">Temp</label><input type="number" class="form-control" name="temperature" value="0.7" step="0.1"></div></div>
+                <div class="mt-3"><input class="form-check-input" type="checkbox" name="active" checked> 立即启用</div>
+            </form>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button type="button" class="btn btn-primary" id="save-model-btn">保存并验证</button></div>
+    </div></div></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="app.js?v=1.1.1"></script>
+</body>
+</html>

@@ -1,0 +1,472 @@
+/**
+ * 股票数据爬虫
+ * 支持多个数据源：Alpha Vantage、Yahoo Finance、新浪财经等
+ */
+
+const axios = require('axios');
+const cheerio = require('cheerio');
+const logger = require('../utils/logger');
+
+class StockDataCrawler {
+    constructor() {
+        this.dataSources = {
+            alphavantage: {
+                baseUrl: 'https://www.alphavantage.co/query',
+                apiKey: process.env.ALPHA_VANTAGE_API_KEY
+            },
+            yahoo: {
+                baseUrl: 'https://query1.finance.yahoo.com/v8/finance/chart'
+            },
+            sina: {
+                baseUrl: 'https://hq.sinajs.cn/list='
+            },
+            eastmoney: {
+                baseUrl: 'https://push2.eastmoney.com/api/qt/stock/get'
+            }
+        };
+        
+        this.cache = new Map(); // 简单缓存机制
+        this.cacheTimeout = 5 * 60 * 1000; // 5分钟缓存
+    }
+
+    /**
+     * 获取股票实时价格
+     */
+    async getRealTimePrice(symbol, source = 'yahoo') {
+        try {
+            const cacheKey = `price_${symbol}_${source}`;
+            const cached = this.getFromCache(cacheKey);
+            if (cached) return cached;
+
+            let data;
+            switch (source.toLowerCase()) {
+                case 'yahoo':
+                    data = await this.getYahooPrice(symbol);
+                    break;
+                case 'sina':
+                    data = await this.getSinaPrice(symbol);
+                    break;
+                case 'eastmoney':
+                    data = await this.getEastMoneyPrice(symbol);
+                    break;
+                default:
+                    data = await this.getYahooPrice(symbol);
+            }
+
+            this.setCache(cacheKey, data);
+            return data;
+
+        } catch (error) {
+            logger.error(`Failed to get real-time price for ${symbol}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 从Yahoo Finance获取数据
+     */
+    /**
+     * 根据美东时间精准判定当前市场时段
+     */
+    getMarketSession(meta) {
+        const now = new Date();
+        // 获取美东当前小时和分钟
+        const etString = now.toLocaleString("en-US", {timeZone: "America/New_York", hour12: false});
+        const [date, time] = etString.split(', ');
+        const [hour, min] = time.split(':').map(Number);
+        const timeVal = hour * 100 + min; // 转换为 0-2400 格式
+
+        // 基础时段判定逻辑 (美东时间)
+        if (timeVal >= 400 && timeVal < 930) return '盘前';
+        if (timeVal >= 930 && timeVal < 1600) return '盘中';
+        if (timeVal >= 1600 && timeVal < 2000) return '盘后';
+        if (timeVal >= 2000 || timeVal < 400) return '夜盘';
+
+        return '常规';
+    }
+
+    async getYahooPrice(symbol) {
+        try {
+            const response = await axios.get(
+                `${this.dataSources.yahoo.baseUrl}/${symbol}`,
+                {
+                    timeout: 10000,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    }
+                }
+            );
+
+            const result = response.data.chart.result[0];
+            const meta = result.meta;
+            const quote = result.indicators.quote[0];
+
+            // 1. 基于美东时间计算当前时段
+            const session = this.getMarketSession(meta);
+
+            // 2. 根据时段提取最相关的价格
+            let currentPrice = meta.regularMarketPrice;
+            if (session === '盘前') currentPrice = meta.preMarketPrice || currentPrice;
+            if (session === '盘后' || session === '夜盘') currentPrice = meta.postMarketPrice || meta.extendedMarketPrice || currentPrice;
+
+            // 3. 计算涨跌幅
+            let changePercent = '0.00';
+            if (meta.previousClose) {
+                changePercent = ((currentPrice - meta.previousClose) / meta.previousClose * 100).toFixed(2);
+            }
+
+            return {
+                symbol: symbol,
+                currentPrice: currentPrice,
+                session: session,
+                previousClose: meta.previousClose,
+                changePercent: changePercent,
+                volume: quote.volume[quote.volume.length - 1],
+                marketCap: meta.marketCap,
+                high: meta.regularMarketDayHigh,
+                low: meta.regularMarketDayLow,
+                timestamp: new Date(),
+                source: 'yahoo'
+            };
+
+        } catch (error) {
+            logger.error(`Yahoo Finance API error for ${symbol}:`, error.message);
+            throw new Error(`Failed to fetch Yahoo data for ${symbol}`);
+        }
+    }
+
+    /**
+     * 从新浪财经获取数据
+     */
+    async getSinaPrice(symbol) {
+        try {
+            // 转换符号格式 (AAPL -> us_aapl)
+            const sinaSymbol = this.convertToSinaSymbol(symbol);
+            
+            const response = await axios.get(
+                `${this.dataSources.sina.baseUrl}${sinaSymbol}`,
+                {
+                    timeout: 10000,
+                    headers: {
+                        'Referer': 'https://finance.sina.com.cn'
+                    },
+                    responseType: 'text'
+                }
+            );
+
+            const data = response.data;
+            const match = data.match(/="([^"]+)"/);
+            
+            if (!match) {
+                throw new Error('Invalid response format');
+            }
+
+            const parts = match[1].split(',');
+            
+            return {
+                symbol: symbol,
+                currentPrice: parseFloat(parts[1]),
+                previousClose: parseFloat(parts[2]),
+                change: parseFloat(parts[1]) - parseFloat(parts[2]),
+                changePercent: (((parseFloat(parts[1]) - parseFloat(parts[2])) / parseFloat(parts[2])) * 100).toFixed(2),
+                high: parseFloat(parts[4]),
+                low: parseFloat(parts[5]),
+                volume: parseInt(parts[8]),
+                timestamp: new Date(),
+                source: 'sina'
+            };
+
+        } catch (error) {
+            logger.error(`Sina Finance API error for ${symbol}:`, error);
+            throw new Error(`Failed to fetch Sina data for ${symbol}`);
+        }
+    }
+
+    /**
+     * 从东方财富获取数据
+     */
+    async getEastMoneyPrice(symbol) {
+        try {
+            const response = await axios.get(this.dataSources.eastmoney.baseUrl, {
+                params: {
+                    secid: this.convertToEastMoneySecId(symbol),
+                    fields: 'f58,f734,f107,f57,f43,f169,f170,f46,f44,f60,f45,f52'
+                },
+                timeout: 10000
+            });
+
+            const data = response.data.data;
+            
+            return {
+                symbol: symbol,
+                currentPrice: data.f43 / 100, // 东方财富价格需要除以100
+                previousClose: data.f60 / 100,
+                change: (data.f43 - data.f60) / 100,
+                changePercent: data.f170,
+                high: data.f44 / 100,
+                low: data.f45 / 100,
+                volume: data.f47,
+                timestamp: new Date(),
+                source: 'eastmoney'
+            };
+
+        } catch (error) {
+            logger.error(`East Money API error for ${symbol}:`, error);
+            throw new Error(`Failed to fetch East Money data for ${symbol}`);
+        }
+    }
+
+    /**
+     * 获取历史数据
+     */
+    async getHistoricalData(symbol, period = '1y', interval = '1d') {
+        try {
+            const cacheKey = `history_${symbol}_${period}_${interval}`;
+            const cached = this.getFromCache(cacheKey);
+            if (cached) return cached;
+
+            // 使用Yahoo Finance获取历史数据
+            const endTime = Math.floor(Date.now() / 1000);
+            const startTime = this.getStartTime(period, endTime);
+
+            const response = await axios.get(
+                `${this.dataSources.yahoo.baseUrl}/${symbol}`,
+                {
+                    params: {
+                        period1: startTime,
+                        period2: endTime,
+                        interval: interval
+                    },
+                    timeout: 15000
+                }
+            );
+
+            const result = response.data.chart.result[0];
+            const timestamps = result.timestamp;
+            const quotes = result.indicators.quote[0];
+
+            const historicalData = timestamps.map((timestamp, index) => ({
+                date: new Date(timestamp * 1000),
+                open: quotes.open[index],
+                high: quotes.high[index],
+                low: quotes.low[index],
+                close: quotes.close[index],
+                volume: quotes.volume[index]
+            })).filter(item => item.close !== null);
+
+            this.setCache(cacheKey, historicalData, 30 * 60 * 1000); // 30分钟缓存
+            return historicalData;
+
+        } catch (error) {
+            logger.error(`Failed to get historical data for ${symbol}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 获取技术指标
+     */
+    async getTechnicalIndicators(symbol, period = '1y') {
+        try {
+            const historicalData = await this.getHistoricalData(symbol, period);
+            
+            return {
+                sma20: this.calculateSMA(historicalData, 20),
+                sma50: this.calculateSMA(historicalData, 50),
+                ema12: this.calculateEMA(historicalData, 12),
+                ema26: this.calculateEMA(historicalData, 26),
+                rsi: this.calculateRSI(historicalData, 14),
+                macd: this.calculateMACD(historicalData),
+                bollinger: this.calculateBollingerBands(historicalData, 20, 2)
+            };
+
+        } catch (error) {
+            logger.error(`Failed to calculate technical indicators for ${symbol}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 计算简单移动平均线 (SMA)
+     */
+    calculateSMA(data, period) {
+        if (data.length < period) return null;
+        
+        const recent = data.slice(-period);
+        const sum = recent.reduce((acc, item) => acc + item.close, 0);
+        return (sum / period).toFixed(2);
+    }
+
+    /**
+     * 计算指数移动平均线 (EMA)
+     */
+    calculateEMA(data, period) {
+        if (data.length < period) return null;
+        
+        const multiplier = 2 / (period + 1);
+        let ema = data[0].close;
+        
+        for (let i = 1; i < data.length; i++) {
+            ema = (data[i].close * multiplier) + (ema * (1 - multiplier));
+        }
+        
+        return ema.toFixed(2);
+    }
+
+    /**
+     * 计算RSI
+     */
+    calculateRSI(data, period = 14) {
+        if (data.length < period + 1) return null;
+        
+        let gains = 0;
+        let losses = 0;
+        
+        for (let i = 1; i <= period; i++) {
+            const change = data[i].close - data[i - 1].close;
+            if (change > 0) {
+                gains += change;
+            } else {
+                losses -= change;
+            }
+        }
+        
+        const avgGain = gains / period;
+        const avgLoss = losses / period;
+        const rs = avgGain / avgLoss;
+        const rsi = 100 - (100 / (1 + rs));
+        
+        return rsi.toFixed(2);
+    }
+
+    /**
+     * 计算MACD
+     */
+    calculateMACD(data) {
+        const ema12 = this.calculateEMAArray(data, 12);
+        const ema26 = this.calculateEMAArray(data, 26);
+        
+        if (!ema12 || !ema26) return null;
+        
+        const macdLine = ema12[ema12.length - 1] - ema26[ema26.length - 1];
+        
+        return {
+            macd: macdLine.toFixed(2),
+            signal: 'N/A', // 简化版本
+            histogram: 'N/A'
+        };
+    }
+
+    /**
+     * 计算布林带
+     */
+    calculateBollingerBands(data, period = 20, stdDev = 2) {
+        if (data.length < period) return null;
+        
+        const sma = parseFloat(this.calculateSMA(data, period));
+        const recent = data.slice(-period);
+        
+        const variance = recent.reduce((acc, item) => {
+            return acc + Math.pow(item.close - sma, 2);
+        }, 0) / period;
+        
+        const standardDeviation = Math.sqrt(variance);
+        
+        return {
+            upper: (sma + (stdDev * standardDeviation)).toFixed(2),
+            middle: sma.toFixed(2),
+            lower: (sma - (stdDev * standardDeviation)).toFixed(2)
+        };
+    }
+
+    /**
+     * 批量获取股票数据
+     */
+    async getBatchStockData(symbols, source = 'yahoo') {
+        const results = [];
+        
+        for (const symbol of symbols) {
+            try {
+                const data = await this.getRealTimePrice(symbol, source);
+                results.push(data);
+                
+                // 避免API限制
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+            } catch (error) {
+                logger.error(`Batch fetch failed for ${symbol}:`, error);
+                results.push({
+                    symbol,
+                    error: error.message,
+                    timestamp: new Date()
+                });
+            }
+        }
+        
+        return results;
+    }
+
+    /**
+     * 工具方法
+     */
+    convertToSinaSymbol(symbol) {
+        // 美股转换为新浪格式
+        return `us_${symbol.toLowerCase()}`;
+    }
+
+    convertToEastMoneySecId(symbol) {
+        // 简化版本，实际需要更复杂的映射
+        return `105.${symbol}`;
+    }
+
+    calculateEMAArray(data, period) {
+        if (data.length < period) return null;
+        
+        const emaArray = [];
+        const multiplier = 2 / (period + 1);
+        let ema = data[0].close;
+        emaArray.push(ema);
+        
+        for (let i = 1; i < data.length; i++) {
+            ema = (data[i].close * multiplier) + (ema * (1 - multiplier));
+            emaArray.push(ema);
+        }
+        
+        return emaArray;
+    }
+
+    getStartTime(period, endTime) {
+        const periods = {
+            '1d': 1 * 24 * 60 * 60,
+            '1w': 7 * 24 * 60 * 60,
+            '1m': 30 * 24 * 60 * 60,
+            '3m': 90 * 24 * 60 * 60,
+            '1y': 365 * 24 * 60 * 60,
+            '5y': 5 * 365 * 24 * 60 * 60
+        };
+        
+        return endTime - (periods[period] || periods['1y']);
+    }
+
+    getFromCache(key) {
+        const cached = this.cache.get(key);
+        if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+            return cached.data;
+        }
+        return null;
+    }
+
+    setCache(key, data, timeout = null) {
+        this.cache.set(key, {
+            data,
+            timestamp: Date.now(),
+            timeout: timeout || this.cacheTimeout
+        });
+    }
+
+    clearCache() {
+        this.cache.clear();
+    }
+}
+
+module.exports = new StockDataCrawler();

@@ -1,0 +1,160 @@
+const express = require('express');
+const router = express.Router();
+const modelManager = require('../ai/modelManager');
+const aiAnalyzer = require('../analyzer/aiAnalyzer');
+const stockCrawler = require('../crawler/stockDataCrawler');
+const wechatPusher = require('../pusher/wechatPusher');
+const scheduler = require('../scheduler/taskScheduler');
+const logger = require('../utils/logger');
+const { authenticateToken, authorize } = require('../middleware/auth');
+
+// ==== 仪表盘API ====
+router.get('/dashboard', authenticateToken, async (req, res) => {
+    try {
+        const models = modelManager.getModels();
+        const activeModels = models.filter(m => m.active).length;
+        const today = new Date().toDateString();
+        const todayAnalyses = (global.analysisResults || []).filter(r => new Date(r.timestamp).toDateString() === today);
+        res.json({ 
+            activeModels, 
+            todayAnalysis: todayAnalyses.length, 
+            monitoredStocks: scheduler.watchList?.length || 0, 
+            messagesSent: global.messagesSentCount || 0 
+        });
+    } catch (error) { 
+        logger.error('Dashboard error:', error.message);
+        res.status(500).json({ message: error.message }); 
+    }
+});
+
+// ==== AI模型管理API ====
+router.get('/models', authenticateToken, (req, res) => {
+    res.json(modelManager.getModels());
+});
+
+router.post('/models', authenticateToken, authorize('admin'), async (req, res) => {
+    try {
+        const config = req.body;
+        // 关键纠错：如果用户填错了NVIDIA的URL
+        if (config.baseUrl && config.baseUrl.includes('build.nvidia.com/settings')) {
+            throw new Error('Base URL 填写错误。NVIDIA NIM 正确的 API 地址应为: https://integrate.api.nvidia.com/v1');
+        }
+        await modelManager.addModel(config);
+        if (global.io) global.io.emit('model_status_changed', { action: 'added', model: config.name });
+        res.status(201).json({ message: 'Model added successfully' });
+    } catch (error) { 
+        logger.error('Add model error:', error.message);
+        res.status(400).json({ message: error.message }); 
+    }
+});
+
+router.post('/models/:name/test', authenticateToken, authorize('admin'), async (req, res) => {
+    try {
+        const testResult = await modelManager.callModel(req.params.name, "Hello! Respond with 'Connected'.");
+        res.json({ message: 'Success', response: testResult });
+    } catch (error) { 
+        logger.error('Test model error:', error.message);
+        res.status(400).json({ message: error.message }); 
+    }
+});
+
+router.patch('/models/:name', authenticateToken, authorize('admin'), async (req, res) => {
+    try {
+        const { name } = req.params;
+        const { active } = req.body;
+        const ModelConfig = require('../database/models/ModelConfig');
+        const updated = await ModelConfig.findOneAndUpdate({ name }, { active }, { new: true });
+        if (!updated) return res.status(404).json({ message: 'Model not found' });
+        await modelManager.loadModels();
+        if (global.io) global.io.emit('model_status_changed', { action: 'updated', model: name, active });
+        res.json({ message: `Model ${name} status updated`, data: updated });
+    } catch (error) { 
+        logger.error('Update model error:', error.message);
+        res.status(500).json({ message: error.message }); 
+    }
+});
+
+router.delete('/models/:name', authenticateToken, authorize('admin'), async (req, res) => {
+    try {
+        await modelManager.removeModel(req.params.name);
+        if (global.io) global.io.emit('model_status_changed', { action: 'deleted', model: req.params.name });
+        res.json({ message: 'Model deleted successfully' });
+    } catch (error) { 
+        logger.error('Delete model error:', error.message);
+        res.status(500).json({ message: error.message }); 
+    }
+});
+
+// ==== 核心分析API ====
+router.post('/analysis', authenticateToken, async (req, res) => {
+    try {
+        const { symbol, modelName } = req.body;
+        if (!symbol) return res.status(400).json({ success: false, message: 'Stock symbol is required' });
+        const result = await aiAnalyzer.analyzeAll(symbol, { modelName });
+        if (global.io) global.io.emit('analysis_result', result);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        logger.error('Analysis API Error:', error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ==== 收藏夹管理API ====
+router.get('/favorites', authenticateToken, async (req, res) => {
+    try {
+        const Favorite = require('../database/models/Favorite');
+        const favorites = await Favorite.find({ user: req.user._id });
+        res.json({ success: true, data: favorites });
+    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+});
+
+router.post('/favorites', authenticateToken, async (req, res) => {
+    try {
+        const Favorite = require('../database/models/Favorite');
+        const fav = new Favorite({ user: req.user._id, ...req.body });
+        await fav.save();
+        res.json({ success: true, data: fav });
+    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+});
+
+router.delete('/favorites/:id', authenticateToken, async (req, res) => {
+    try {
+        const Favorite = require('../database/models/Favorite');
+        await Favorite.deleteOne({ _id: req.params.id, user: req.user._id });
+        res.json({ success: true });
+    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+});
+
+// ==== 其他任务/系统 API ====
+router.get('/scheduler/status', authenticateToken, (req, res) => {
+    res.json({ running: scheduler.running, tasks: scheduler.getTaskStatus(), watchList: scheduler.watchList });
+});
+
+router.post('/scheduler/:action', authenticateToken, authorize('admin'), (req, res) => {
+    try {
+        if (req.params.action === 'start') scheduler.start();
+        else scheduler.stop();
+        res.json({ success: true });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+router.get('/users', authenticateToken, authorize('admin'), async (req, res) => {
+    try {
+        const User = require('../database/models/User');
+        const users = await User.find();
+        res.json({ success: true, data: users });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+router.get('/push/status', authenticateToken, (req, res) => {
+    res.json(wechatPusher.getConfigStatus());
+});
+
+router.post('/push/test', authenticateToken, authorize('admin'), async (req, res) => {
+    try {
+        const result = await wechatPusher.testPush();
+        res.json({ success: result, message: result ? 'Sent' : 'Failed' });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+module.exports = router;
