@@ -1314,3 +1314,46 @@
 {"level":"error","message":"Failed to get real-time price for SOGP: Failed to fetch Yahoo data for SOGP","service":"stock-analysis-ai","stack":"Error: Failed to fetch Yahoo data for SOGP\n    at StockDataCrawler.getYahooPrice (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/crawler/stockDataCrawler.js:134:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async StockDataCrawler.getRealTimePrice (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/crawler/stockDataCrawler.js:44:28)\n    at async AIStockAnalyzer.getStockData (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/analyzer/aiAnalyzer.js:137:26)\n    at async AIStockAnalyzer.analyzeAll (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/analyzer/aiAnalyzer.js:82:31)\n    at async /Users/chenyousheng/work/workspace/node/StockAnalysis/src/routes/api.js:93:24","timestamp":"2026-02-13T15:09:31.436Z"}
 {"aiModels":true,"dataSources":true,"level":"warn","memory":{"arrayBuffers":18598505,"external":22155050,"heapTotal":36323328,"heapUsed":34521464,"rss":65798144},"message":"System health check detected issues:","pushService":false,"service":"stock-analysis-ai","timestamp":"2026-02-13T15:10:00.854Z","uptime":572.542654917}
 {"aiModels":true,"dataSources":true,"level":"warn","memory":{"arrayBuffers":18604865,"external":22187318,"heapTotal":36323328,"heapUsed":34215352,"rss":65896448},"message":"System health check detected issues:","pushService":false,"service":"stock-analysis-ai","timestamp":"2026-02-13T15:15:00.144Z","uptime":871.670071042}
+{"aiModels":true,"dataSources":true,"level":"warn","memory":{"arrayBuffers":18634729,"external":22191274,"heapTotal":36323328,"heapUsed":34137096,"rss":69763072},"message":"System health check detected issues:","pushService":false,"service":"stock-analysis-ai","timestamp":"2026-02-13T15:20:00.446Z","uptime":1172.095164209}
+{"level":"info","message":"✅ System synchronized 2 AI nodes.","service":"stock-analysis-ai","timestamp":"2026-02-13T15:24:05.679Z"}
+{"level":"info","message":"Starting Ultra-Concise 9-Dimensional analysis for MSTR","service":"stock-analysis-ai","timestamp":"2026-02-13T15:24:19.259Z"}
+{"aiModels":true,"dataSources":true,"level":"warn","memory":{"arrayBuffers":18744768,"external":22301313,"heapTotal":37896192,"heapUsed":35104416,"rss":71876608},"message":"System health check detected issues:","pushService":false,"service":"stock-analysis-ai","timestamp":"2026-02-13T15:25:00.742Z","uptime":1472.391838084}
+{"level":"warn","message":"MongoDB not found, switching to In-Memory mode.","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.240Z"}
+{"level":"info","message":"✅ System synchronized 0 AI nodes.","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.401Z"}
+{"level":"info","message":"🚀 Advanced Task Scheduler starting...","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.401Z"}
+{"level":"info","message":"✅ Task 'pre-market-analysis' scheduled: 0 21 * * 1-5","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.427Z"}
+{"level":"info","message":"✅ Task 'intraday-monitoring' scheduled: */30 23-23,0-4 * * 1-5","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.427Z"}
+{"level":"info","message":"✅ Task 'post-market-analysis' scheduled: 30 5 * * 2-6","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.428Z"}
+{"level":"info","message":"✅ Task 'daily-summary' scheduled: 0 6 * * 2-6","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.428Z"}
+{"level":"info","message":"✅ Task 'weekly-summary' scheduled: 0 10 * * 6","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.428Z"}
+{"level":"info","message":"✅ Task 'earnings-calendar' scheduled: 0 8 * * *","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.428Z"}
+{"level":"info","message":"✅ Task 'news-monitoring' scheduled: */15 * * * *","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.429Z"}
+{"level":"info","message":"✅ Task 'market-anomaly-check' scheduled: */10 * * * *","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.429Z"}
+{"level":"info","message":"✅ Task 'cache-cleanup' scheduled: 0 2 * * *","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.429Z"}
+{"level":"info","message":"✅ Task 'health-check' scheduled: */5 * * * *","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.430Z"}
+{"level":"info","message":"✅ Task scheduler started successfully","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.430Z"}
+{"level":"info","message":"🚀 System started on port 3000 (Mode: In-Memory)","service":"stock-analysis-ai","timestamp":"2026-02-13T15:27:24.431Z"}
+{"level":"info","message":"New user registered: victor","service":"stock-analysis-ai","timestamp":"2026-02-13T15:29:44.500Z"}
+{"level":"info","message":"📊 Running intraday monitoring...","service":"stock-analysis-ai","timestamp":"2026-02-13T15:30:00.584Z"}
+{"aiModels":false,"dataSources":true,"level":"warn","memory":{"arrayBuffers":18413635,"external":21970140,"heapTotal":34226176,"heapUsed":32211216,"rss":107446272},"message":"System health check detected issues:","pushService":false,"service":"stock-analysis-ai","timestamp":"2026-02-13T15:30:00.607Z","uptime":161.865244334}
+{"level":"info","message":"✅ System synchronized 1 AI nodes.","service":"stock-analysis-ai","timestamp":"2026-02-13T15:30:16.671Z"}
+{"level":"info","message":"Starting Anti-Hallucination 9-D analysis for MSTR","service":"stock-analysis-ai","timestamp":"2026-02-13T15:30:45.208Z"}
+{"level":"warn","message":"MongoDB not found, switching to In-Memory mode.","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.560Z"}
+{"level":"info","message":"✅ System synchronized 0 AI nodes.","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.664Z"}
+{"level":"info","message":"🚀 Advanced Task Scheduler starting...","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.665Z"}
+{"level":"info","message":"✅ Task 'pre-market-analysis' scheduled: 0 21 * * 1-5","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.680Z"}
+{"level":"info","message":"✅ Task 'intraday-monitoring' scheduled: */30 23-23,0-4 * * 1-5","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.680Z"}
+{"level":"info","message":"✅ Task 'post-market-analysis' scheduled: 30 5 * * 2-6","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.681Z"}
+{"level":"info","message":"✅ Task 'daily-summary' scheduled: 0 6 * * 2-6","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.681Z"}
+{"level":"info","message":"✅ Task 'weekly-summary' scheduled: 0 10 * * 6","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.681Z"}
+{"level":"info","message":"✅ Task 'earnings-calendar' scheduled: 0 8 * * *","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.682Z"}
+{"level":"info","message":"✅ Task 'news-monitoring' scheduled: */15 * * * *","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.682Z"}
+{"level":"info","message":"✅ Task 'market-anomaly-check' scheduled: */10 * * * *","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.682Z"}
+{"level":"info","message":"✅ Task 'cache-cleanup' scheduled: 0 2 * * *","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.682Z"}
+{"level":"info","message":"✅ Task 'health-check' scheduled: */5 * * * *","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.682Z"}
+{"level":"info","message":"✅ Task scheduler started successfully","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.683Z"}
+{"level":"info","message":"🚀 System started on port 3000 (Mode: In-Memory)","service":"stock-analysis-ai","timestamp":"2026-02-13T15:33:35.684Z"}
+{"level":"info","message":"New user registered: victor","service":"stock-analysis-ai","timestamp":"2026-02-13T15:34:30.482Z"}
+{"level":"info","message":"✅ System synchronized 1 AI nodes.","service":"stock-analysis-ai","timestamp":"2026-02-13T15:34:58.476Z"}
+{"aiModels":true,"dataSources":true,"level":"warn","memory":{"arrayBuffers":18404940,"external":21971823,"heapTotal":55459840,"heapUsed":36218896,"rss":127336448},"message":"System health check detected issues:","pushService":false,"service":"stock-analysis-ai","timestamp":"2026-02-13T15:35:00.764Z","uptime":90.525826625}
+{"level":"info","message":"Starting Restoration 9-D analysis for MSTR","service":"stock-analysis-ai","timestamp":"2026-02-13T15:35:03.660Z"}

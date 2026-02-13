@@ -1,4 +1,4 @@
-// AI股票分析系统前端逻辑 - 鲁棒性增强版 (V1.1.7)
+// AI股票分析系统前端逻辑 - 模型库扩容版 (V1.1.8)
 
 let socket;
 let currentModels = [];
@@ -6,7 +6,6 @@ let currentUser = null;
 let token = localStorage.getItem('token');
 let lastAnalysisResult = null;
 
-// 1. 核心状态切换函数 (立即挂载)
 function toggleAuth(isLogin) {
     const title = document.getElementById('auth-title');
     const loginForm = document.getElementById('loginForm');
@@ -16,138 +15,6 @@ function toggleAuth(isLogin) {
     if (registerForm) registerForm.style.display = isLogin ? 'none' : 'block';
 }
 window.toggleAuth = toggleAuth;
-
-document.addEventListener('DOMContentLoaded', function() {
-    // 初始化顺序优化：先绑定事件，后检查状态
-    setupGlobalEventListeners();
-    checkAuth();
-    initializeSocket();
-});
-
-function checkAuth() {
-    if (!token) {
-        showAuthOnly();
-    } else {
-        loadDashboard();
-        showSection('dashboard');
-    }
-}
-
-function showAuthOnly() {
-    const sections = document.querySelectorAll('.section');
-    sections.forEach(s => s.style.display = 'none');
-    const authSec = document.getElementById('auth-section');
-    if (authSec) authSec.style.display = 'block';
-    const sidebar = document.querySelector('.sidebar');
-    if (sidebar) sidebar.style.display = 'none';
-}
-
-function setupGlobalEventListeners() {
-    // 采用统一事件委托，彻底杜绝元素未加载或 ID 匹配问题
-    document.body.addEventListener('click', async (e) => {
-        const target = e.target;
-        
-        // 1. 登录注册切换 (使用 ID 匹配)
-        if (target.id === 'to-register-link') {
-            e.preventDefault();
-            toggleAuth(false);
-            return;
-        }
-        if (target.id === 'to-login-link') {
-            e.preventDefault();
-            toggleAuth(true);
-            return;
-        }
-
-        // 2. 侧边栏导航 (使用 dataset.section)
-        const navLink = target.closest('.nav-link');
-        if (navLink && navLink.dataset.section) {
-            e.preventDefault();
-            showSection(navLink.dataset.section);
-            return;
-        }
-
-        // 3. 退出登录
-        if (target.id === 'logout-btn') {
-            e.preventDefault();
-            logout();
-            return;
-        }
-
-        // 4. 业务按钮处理
-        if (target.matches('#ingest-news-btn') || target.closest('#ingest-news-btn')) ingestNews();
-        if (target.matches('#test-notification-btn')) testNotification();
-        if (target.matches('[data-action="start-scheduler"]')) controlScheduler('start');
-        if (target.matches('[data-action="stop-scheduler"]')) controlScheduler('stop');
-        
-        // 5. 动态生成的列表按钮 (使用 dataset 路由)
-        const action = target.dataset.action;
-        const id = target.dataset.id;
-        const modelAction = target.dataset.modelAction;
-        const modelName = target.dataset.modelName;
-
-        if (modelAction === 'test') testModel(modelName);
-        if (modelAction === 'delete') deleteModel(modelName);
-        if (action === 'view-favorite') viewFavorite(id);
-        if (action === 'delete-favorite') deleteFavorite(id);
-        if (action === 'run-task') runTaskManual(target.dataset.taskName);
-        if (action === 'delete-user') deleteUser(target.dataset.userId);
-
-        // 6. 静态表单按钮
-        if (target.id === 'save-model-btn') saveModel();
-        if (target.id === 'save-to-favorites-btn') saveToFavorites();
-        if (target.id === 'back-to-fav-list-btn') {
-            document.getElementById('favorites-detail-view').style.display = 'none';
-            document.getElementById('favorites-list-view').style.display = 'block';
-        }
-    });
-
-    // 监听表单提交
-    document.addEventListener('submit', async (e) => {
-        const id = e.target.id;
-        if (id === 'loginForm') {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target));
-            await handleAuth('/api/auth/login', data);
-        } else if (id === 'registerForm') {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target));
-            await handleAuth('/api/auth/register', data);
-        } else if (id === 'analysis-form') {
-            e.preventDefault();
-            performAnalysis();
-        }
-    });
-
-    // 提供商下拉监听
-    document.addEventListener('change', (e) => {
-        if (e.target.id === 'providerSelect') {
-            updateModelOptions(e.target.value);
-        }
-    });
-}
-
-// 核心业务函数 (保持不变但进行加固)
-function showSection(name) {
-    const sections = document.querySelectorAll('.section');
-    sections.forEach(s => s.style.display = 'none');
-    const target = document.getElementById(name);
-    if (target) target.style.display = 'block';
-    
-    const navLinks = document.querySelectorAll('.nav-link');
-    navLinks.forEach(l => {
-        l.classList.remove('active');
-        if (l.dataset.section === name) l.classList.add('active');
-    });
-
-    const sidebar = document.querySelector('.sidebar');
-    if (sidebar) sidebar.style.display = 'block';
-
-    if (name === 'analysis') loadAnalysisInterface();
-    if (name === 'models') loadModels();
-    if (name === 'favorites') loadFavorites();
-    if (name === 'news') loadNewsFeed();
-}
 
 function parseMarkdownToHtml(text) {
     if (!text) return '';
@@ -169,54 +36,109 @@ function parseMarkdownToHtml(text) {
     }).join('');
 }
 
-async function handleAuth(url, data) {
-    try {
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-        const result = await res.json();
-        if (result.success) { 
-            token = result.data.accessToken; 
-            localStorage.setItem('token', token); 
-            window.location.reload(); 
-        } else {
-            showNotification('错误', result.message, 'danger');
+document.addEventListener('DOMContentLoaded', function() {
+    setupGlobalEventListeners();
+    checkAuth();
+    initializeSocket();
+});
+
+function checkAuth() {
+    if (!token) {
+        showAuthOnly();
+    } else {
+        loadDashboard();
+        showSection('dashboard');
+    }
+}
+
+function showAuthOnly() {
+    const sections = document.querySelectorAll('.section');
+    sections.forEach(s => s.style.display = 'none');
+    document.getElementById('auth-section').style.display = 'block';
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) sidebar.style.display = 'none';
+}
+
+function setupGlobalEventListeners() {
+    document.body.addEventListener('click', async (e) => {
+        const target = e.target;
+        if (target.id === 'to-register-link') { e.preventDefault(); toggleAuth(false); return; }
+        if (target.id === 'to-login-link') { e.preventDefault(); toggleAuth(true); return; }
+        const navLink = target.closest('.nav-link');
+        if (navLink && navLink.dataset.section) { e.preventDefault(); showSection(navLink.dataset.section); return; }
+        if (target.id === 'logout-btn') { e.preventDefault(); logout(); return; }
+        if (target.matches('#ingest-news-btn') || target.closest('#ingest-news-btn')) ingestNews();
+        if (target.matches('#test-notification-btn')) testNotification();
+        if (target.matches('[data-action="start-scheduler"]')) controlScheduler('start');
+        if (target.matches('[data-action="stop-scheduler"]')) controlScheduler('stop');
+        
+        const action = target.dataset.action;
+        const id = target.dataset.id;
+        const modelAction = target.dataset.modelAction;
+        const modelName = target.dataset.modelName;
+
+        if (modelAction === 'test') testModel(modelName);
+        if (modelAction === 'delete') deleteModel(modelName);
+        if (action === 'view-favorite') viewFavorite(id);
+        if (action === 'delete-favorite') deleteFavorite(id);
+        if (action === 'run-task') runTaskManual(target.dataset.taskName);
+        if (action === 'delete-user') deleteUser(target.dataset.userId);
+
+        if (target.id === 'save-model-btn') saveModel();
+        if (target.id === 'save-to-favorites-btn') saveToFavorites();
+        if (target.id === 'back-to-fav-list-btn') {
+            document.getElementById('favorites-detail-view').style.display = 'none';
+            document.getElementById('favorites-list-view').style.display = 'block';
         }
-    } catch (e) { console.error(e); }
+    });
+
+    document.addEventListener('submit', async (e) => {
+        const id = e.target.id;
+        if (id === 'loginForm') { e.preventDefault(); await handleAuth('/api/auth/login', Object.fromEntries(new FormData(e.target))); }
+        else if (id === 'registerForm') { e.preventDefault(); await handleAuth('/api/auth/register', Object.fromEntries(new FormData(e.target))); }
+        else if (id === 'analysis-form') { e.preventDefault(); performAnalysis(); }
+    });
+
+    document.addEventListener('change', (e) => {
+        if (e.target.id === 'providerSelect') updateModelOptions(e.target.value);
+    });
 }
 
-async function apiFetch(url, opts = {}) {
-    opts.headers = { ...opts.headers, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
-    const res = await fetch(url, opts);
-    if (res.status === 401) logout();
-    return res.json();
+function showSection(name) {
+    const sections = document.querySelectorAll('.section');
+    sections.forEach(s => s.style.display = 'none');
+    if (document.getElementById(name)) document.getElementById(name).style.display = 'block';
+    const navLinks = document.querySelectorAll('.nav-link');
+    navLinks.forEach(l => { l.classList.remove('active'); if (l.dataset.section === name) l.classList.add('active'); });
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) sidebar.style.display = 'block';
+    if (name === 'analysis') loadAnalysisInterface();
+    if (name === 'models') loadModels();
+    if (name === 'favorites') loadFavorites();
+    if (name === 'news') loadNewsFeed();
 }
 
-async function loadDashboard() {
-    try {
-        const data = await apiFetch('/api/dashboard');
-        if (document.getElementById('active-models-count')) document.getElementById('active-models-count').textContent = data.activeModels;
-        if (document.getElementById('today-analysis-count')) document.getElementById('today-analysis-count').textContent = data.todayAnalysis;
-    } catch (e) {}
-}
-
-async function loadModels() {
-    try {
-        const models = await apiFetch('/api/models');
-        const container = document.getElementById('models-container');
-        if (!container) return;
-        if (models.length === 0) { container.innerHTML = '<div class="col-12 text-center py-5 text-muted">未配置AI模型</div>'; return; }
-        container.innerHTML = models.map(m => `<div class="col-lg-4 col-md-6 mb-4"><div class="card card-custom h-100"><div class="card-header bg-transparent d-flex justify-content-between align-items-center"><h6 class="mb-0 fw-bold">${m.name}</h6><div class="badge ${m.active ? 'bg-success' : 'bg-secondary'}">${m.active ? '运行中' : '停止'}</div></div><div class="card-body"><p class="small text-muted mb-3">引擎: ${m.model}</p><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-primary" data-model-action="test" data-model-name="${m.name}">验证</button><button class="btn btn-sm btn-outline-danger" data-model-action="delete" data-model-name="${m.name}">释放</button></div></div></div></div>`).join('');
-    } catch (e) {}
-}
-
-async function loadAnalysisInterface() {
-    const modelSelect = document.getElementById('analysis-model');
+function updateModelOptions(provider) {
+    const modelSelect = document.getElementById('modelSelect');
+    const baseUrlInput = document.getElementById('baseUrl');
     if (!modelSelect) return;
-    try {
-        const models = await apiFetch('/api/models');
-        const activeModels = models.filter(m => m.active);
-        if (activeModels.length === 0) { modelSelect.innerHTML = '<option value="">暂无节点</option>'; return; }
-        modelSelect.innerHTML = activeModels.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
-    } catch (error) {}
+    
+    // 内置 Google Gemma 3 模型选项
+    const modelOptions = {
+        'openai': [
+            { value: 'google/gemma-3-27b-it', text: 'NVIDIA - Gemma-3-27B' },
+            { value: 'z-ai/glm4.7', text: 'NVIDIA - GLM-4.7' },
+            { value: 'gpt-4o', text: 'OpenAI - GPT-4o' }
+        ],
+        'claude': [{ value: 'claude-3-opus-20240229', text: 'Claude-3 Opus' }]
+    };
+    
+    if (provider && modelOptions[provider]) {
+        modelSelect.innerHTML = modelOptions[provider].map(option => `<option value="${option.value}">${option.text}</option>`).join('');
+        if (baseUrlInput) baseUrlInput.value = provider === 'openai' ? 'https://api.openai.com/v1' : '';
+    } else {
+        modelSelect.innerHTML = '<option value="">请选择...</option>';
+    }
 }
 
 async function performAnalysis() {
@@ -230,7 +152,7 @@ async function performAnalysis() {
     spinner?.classList.remove('d-none');
     if (btn) btn.disabled = true;
     favBtn?.classList.add('d-none');
-    resultContainer.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm"></div><span class="ms-2">深度研判中...</span></div>';
+    resultContainer.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-3 fw-bold">正在拉取多维实时数据并生成深度研报...</p></div>';
     try {
         const response = await apiFetch('/api/analysis', { method: 'POST', body: JSON.stringify({ symbol, modelName }) });
         if (response.success && response.analysis) {
@@ -238,60 +160,55 @@ async function performAnalysis() {
             favBtn?.classList.remove('d-none');
             const raw = response.rawData || {};
             let headerHtml = `<div class="p-3 mb-4 rounded border bg-light d-flex justify-content-between align-items-center"><div><h4 class="mb-0 fw-bold">${symbol} <span class="badge bg-dark ms-2" style="font-size: 12px;">${raw.session || '实时'}</span></h4></div><div class="text-end"><span class="h4 mb-0 fw-bold">${raw.currentPrice || 'N/A'}</span><span class="ms-2 fw-bold ${parseFloat(raw.changePercent) >= 0 ? 'text-success' : 'text-danger'}">${raw.changePercent || '0.00'}%</span></div></div>`;
-            resultContainer.innerHTML = headerHtml + `<div class="ai-report-body">${parseMarkdownToHtml(response.analysis)}</div>`;
+            resultContainer.innerHTML = headerHtml + `<div class="ai-report-body px-1">${parseMarkdownToHtml(response.analysis)}</div>`;
         }
     } catch (e) { resultContainer.innerHTML = `<div class="alert alert-danger">${e.message}</div>`; }
     finally { spinner?.classList.add('d-none'); if (btn) btn.disabled = false; }
 }
 
-async function saveToFavorites() {
-    if (!lastAnalysisResult) return;
-    const res = await apiFetch('/api/favorites', { method: 'POST', body: JSON.stringify({ symbol: lastAnalysisResult.symbol, title: `${lastAnalysisResult.symbol} 深度研报`, content: lastAnalysisResult.analysis, analysisData: lastAnalysisResult.rawData }) });
-    if (res.success) { showNotification('成功', '研报已封存', 'success'); document.getElementById('save-to-favorites-btn').classList.add('d-none'); }
-}
-
-async function loadFavorites() {
-    const container = document.getElementById('favorites-list-container');
-    if (!container) return;
-    document.getElementById('favorites-detail-view').style.display = 'none';
-    document.getElementById('favorites-list-view').style.display = 'block';
+async function handleAuth(url, data) {
     try {
-        const res = await apiFetch('/api/favorites');
-        if (res.data.length === 0) { container.innerHTML = '<div class="col-12 text-center py-5 text-muted">档案库为空</div>'; return; }
-        container.innerHTML = res.data.map(f => `<div class="col-md-6 mb-4"><div class="card card-custom h-100"><div class="card-body"><div class="d-flex justify-content-between align-items-start"><h5 class="card-title fw-bold text-primary">${f.symbol}</h5><small class="text-muted">${new Date(f.createdAt).toLocaleDateString()}</small></div><p class="small text-muted text-truncate mb-3">${f.title}</p><div class="d-flex gap-2"><button class="btn btn-sm btn-primary" data-action="view-favorite" data-id="${f._id}">查看</button><button class="btn btn-sm btn-outline-danger" data-action="delete-favorite" data-id="${f._id}">移除</button></div></div></div></div>`).join('');
-    } catch (e) {}
-}
-
-async function viewFavorite(id) {
-    try {
-        const res = await apiFetch('/api/favorites');
-        const fav = res.data.find(i => i._id === id);
-        if (fav) {
-            document.getElementById('favorites-list-view').style.display = 'none';
-            document.getElementById('favorites-detail-view').style.display = 'block';
-            const raw = fav.analysisData || {};
-            let headerHtml = `<div class="p-3 mb-4 rounded border bg-light d-flex justify-content-between align-items-center"><div><h4 class="mb-0 fw-bold">${fav.symbol} <span class="badge bg-secondary ms-2">历史快照</span></h4></div><div class="text-end"><span class="h4 mb-0 fw-bold">${raw.currentPrice || 'N/A'}</span><span class="ms-2 fw-bold ${parseFloat(raw.changePercent) >= 0 ? 'text-success' : 'text-danger'}">${raw.changePercent || '0.00'}%</span></div></div>`;
-            document.getElementById('fav-detail-content').innerHTML = headerHtml + `<div class="ai-report-body">${parseMarkdownToHtml(fav.content)}</div>`;
-        }
-    } catch (e) {}
-}
-
-function updateModelOptions(provider) {
-    const modelSelect = document.getElementById('modelSelect');
-    if (!modelSelect) return;
-    const modelOptions = {
-        'openai': [{ value: 'z-ai/glm4.7', text: 'NVIDIA GLM-4.7' }, { value: 'gpt-4o', text: 'GPT-4o' }],
-        'claude': [{ value: 'claude-3-opus-20240229', text: 'Claude-3 Opus' }]
-    };
-    if (provider && modelOptions[provider]) {
-        modelSelect.innerHTML = modelOptions[provider].map(option => `<option value="${option.value}">${option.text}</option>`).join('');
-    }
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        const result = await res.json();
+        if (result.success) { token = result.data.accessToken; localStorage.setItem('token', token); window.location.reload(); }
+        else showNotification('错误', result.message, 'danger');
+    } catch (e) { console.error(e); }
 }
 
 function logout() { localStorage.removeItem('token'); window.location.reload(); }
-function initializeSocket() { if (typeof io !== 'undefined') { socket = io(); socket.on('connect', () => console.log('✅ Connected')); } }
-async function testModel(name) { try { const res = await apiFetch(`/api/models/${name}/test`, { method: 'POST' }); showNotification('成功', '节点正常', 'success'); } catch (e) { showNotification('异常', e.message, 'danger'); } }
-async function deleteModel(name) { if (confirm('确定释放此节点？')) { await apiFetch(`/api/models/${name}`, { method: 'DELETE' }); loadModels(); } }
+async function apiFetch(url, opts = {}) {
+    opts.headers = { ...opts.headers, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const res = await fetch(url, opts);
+    if (res.status === 401) logout();
+    return res.json();
+}
+async function loadDashboard() { try { const data = await apiFetch('/api/dashboard'); document.getElementById('active-models-count').textContent = data.activeModels; document.getElementById('today-analysis-count').textContent = data.todayAnalysis; } catch (e) {} }
+async function loadModels() {
+    try {
+        const models = await apiFetch('/api/models');
+        const container = document.getElementById('models-container');
+        if (!container) return;
+        if (models.length === 0) { container.innerHTML = '<div class="col-12 text-center py-5">未配置AI模型</div>'; return; }
+        container.innerHTML = models.map(m => `<div class="col-lg-4 col-md-6 mb-4"><div class="card card-custom h-100"><div class="card-header bg-transparent d-flex justify-content-between align-items-center"><h6 class="mb-0 fw-bold">${m.name}</h6><div class="badge ${m.active ? 'bg-success' : 'bg-secondary'}">${m.active ? '活跃' : '停用'}</div></div><div class="card-body"><p class="small text-muted mb-3">提供商: ${m.provider}<br>模型: ${m.model}</p><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-primary" data-model-action="test" data-model-name="${m.name}">测试</button><button class="btn btn-sm btn-outline-danger" data-model-action="delete" data-model-name="${m.name}">删除</button></div></div></div></div>`).join('');
+    } catch (e) {}
+}
+async function loadAnalysisInterface() {
+    const modelSelect = document.getElementById('analysis-model');
+    if (!modelSelect) return;
+    try {
+        const models = await apiFetch('/api/models');
+        const activeModels = models.filter(m => m.active);
+        if (activeModels.length === 0) { modelSelect.innerHTML = '<option value="">暂无节点</option>'; return; }
+        modelSelect.innerHTML = activeModels.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+    } catch (error) {}
+}
+async function saveToFavorites() {
+    if (!lastAnalysisResult) return;
+    const res = await apiFetch('/api/favorites', { method: 'POST', body: JSON.stringify({ symbol: lastAnalysisResult.symbol, title: `${lastAnalysisResult.symbol} 全维研报`, content: lastAnalysisResult.analysis, analysisData: lastAnalysisResult.rawData }) });
+    if (res.success) { showNotification('成功', '研报已存入收藏夹', 'success'); document.getElementById('save-to-favorites-btn').classList.add('d-none'); }
+}
+async function testModel(name) { try { const res = await apiFetch(`/api/models/${name}/test`, { method: 'POST' }); showNotification('成功', `响应正常`, 'success'); } catch (e) { showNotification('失败', e.message, 'danger'); } }
+async function deleteModel(name) { if (confirm('确定删除此模型？')) { await apiFetch(`/api/models/${name}`, { method: 'DELETE' }); loadModels(); } }
 async function deleteUser(id) { if (confirm('确定删除用户？')) { await apiFetch(`/api/users/${id}`, { method: 'DELETE' }); } }
 async function deleteFavorite(id) { if (confirm('确定移除收藏？')) { await apiFetch(`/api/favorites/${id}`, { method: 'DELETE' }); loadFavorites(); } }
 function showNotification(t, m, type) { const toast = document.createElement('div'); toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`; toast.style.cssText = 'top: 20px; right: 20px; z-index: 10000; min-width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);'; toast.innerHTML = `<strong>${t}</strong><br>${m}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`; document.body.appendChild(toast); setTimeout(() => toast.remove(), 5000); }
@@ -305,7 +222,7 @@ async function loadNewsFeed() {
     } catch (e) {}
 }
 async function ingestNews() {
-    showNotification('正在获取', '同步资讯...', 'info');
+    showNotification('同步中', '正在抓取资讯...', 'info');
     try { const res = await apiFetch('/api/news/ingest', { method: 'POST' }); showNotification('成功', `已录入 ${res.stats.savedCount} 条讯息`, 'success'); loadNewsFeed(); } catch (e) {}
 }
 async function saveModel() {
