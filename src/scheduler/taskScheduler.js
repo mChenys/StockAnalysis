@@ -8,6 +8,7 @@ const logger = require('../utils/logger');
 const aiAnalyzer = require('../analyzer/aiAnalyzer');
 const stockCrawler = require('../crawler/stockDataCrawler');
 const wechatPusher = require('../pusher/wechatPusher');
+const newsCrawler = require('../crawler/newsCrawler');
 
 class TaskScheduler {
     constructor() {
@@ -288,10 +289,31 @@ class TaskScheduler {
      */
     async monitorNews() {
         try {
-            // 这里可以集成新闻API
-            // 检查是否有影响关注股票的重要新闻
-            logger.debug('News monitoring check completed');
+            const { newItems } = await newsCrawler.fetchAll();
             
+            if (newItems && newItems.length > 0) {
+                for (const newsItem of newItems) {
+                    const isRelated = newsItem.relatedSymbols && 
+                        newsItem.relatedSymbols.some(sym => this.watchList.includes(sym));
+                    
+                    const isHighSentiment = Math.abs(newsItem.sentimentScore) > 0.6;
+                    
+                    if (isRelated || isHighSentiment) {
+                        await wechatPusher.pushMarketAlert({
+                            type: 'news_alert',
+                            symbol: (newsItem.relatedSymbols || []).join(','),
+                            title: newsItem.title,
+                            source: newsItem.sourceId,
+                            publishTime: newsItem.publishedAt,
+                            sentiment: newsItem.sentimentScore > 0 ? 'bullish' : 'bearish',
+                            sentimentSummary: newsItem.content.substring(0, 100) + '...'
+                        });
+                        
+                        await this.delay(1000);
+                    }
+                }
+            }
+            logger.debug('News monitoring check completed. Found ' + (newItems ? newItems.length : 0) + ' items.');
         } catch (error) {
             logger.error('News monitoring failed:', error);
         }
@@ -355,7 +377,7 @@ class TaskScheduler {
         try {
             await wechatPusher.pushMarketAlert({
                 type: 'system_startup',
-                message: `AI股票分析系统已启动\n\n✅ 监控股票: ${this.watchList.join(', ')}\n⏰ 任务调度: 已激活\n🤖 AI模型: 就绪`,
+                message: `### 🚀 AI股票分析系统已启动\n\n**✅ 监控股票:** ${this.watchList.join(', ')}\n**⏰ 任务调度:** 已激活\n**🤖 AI模型:** 就绪`,
                 timestamp: new Date()
             });
         } catch (error) {
@@ -408,15 +430,25 @@ class TaskScheduler {
     /**
      * 辅助方法
      */
+
     formatPreMarketSummary(results) {
-        const successful = results.filter(r => r.analysis);
-        return `🌅 开盘前分析完成\n\n分析股票: ${successful.map(r => r.symbol).join(', ')}\n完成数量: ${successful.length}/${this.watchList.length}\n\n请查看详细分析结果`;
+        const successful = results.filter(r => r.analysis || r.technical);
+        return `### 🌅 开盘前分析完成\n\n**分析股票:** ${successful.map(r => r.symbol || '').join(', ')}\n**完成数量:** ${successful.length}/${this.watchList.length}\n\n*请登录系统查看详细AI分析结果* `;
     }
 
     formatPostMarketSummary(analyses) {
-        return `🌙 今日收盘分析\n\n` + analyses.map(a => 
-            `【${a.symbol}】\n技术面: ${a.technical.analysis.substring(0, 100)}...\n`
-        ).join('\n');
+        return `### 🌙 今日收盘分析\n\n` + analyses.map(a => {
+            // Check sentiment from technical analysis
+            let sentiment = 'neutral';
+            if (a.technical && a.technical.sentiment) sentiment = a.technical.sentiment.toLowerCase();
+            
+            let icon = '➖';
+            if (['bullish', 'high', 'positive'].includes(sentiment)) icon = '🔺';
+            if (['bearish', 'low', 'negative'].includes(sentiment)) icon = '🔻';
+            
+            const analysisText = a.technical && a.technical.analysis ? a.technical.analysis.substring(0, 100) : '无分析数据';
+            return `**【${a.symbol}】** ${icon}\n> 技术面: ${analysisText}...\n`;
+        }).join('\n');
     }
 
     checkAIModelsHealth() {
@@ -462,7 +494,7 @@ class TaskScheduler {
     async sendDailySummary(summary) {
         await wechatPusher.pushMarketAlert({
             type: 'daily_summary',
-            message: `今日市场总结 (${summary.date})\n市场表现: ${summary.marketPerformance}\n热门变动: ${summary.topMovers}`,
+            message: `### 📊 今日市场总结 (${summary.date})\n\n**市场表现:** ${summary.marketPerformance}\n**热门变动:** ${summary.topMovers}`,
             timestamp: new Date()
         });
     }

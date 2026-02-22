@@ -13,9 +13,22 @@ class AIModelManager {
         try {
             const ModelConfig = require('../database/models/ModelConfig');
             // 加载所有模型，不在此处过滤 active: true，以便管理界面能显示全部
-            const configs = await ModelConfig.find();
+            let configs = await ModelConfig.find();
             
             this.models.clear();
+
+            // 如果数据库中没有模型，创建默认的 MockModel
+            if (!configs || configs.length === 0) {
+                const defaultModel = new ModelConfig({
+                    name: 'MockModel',
+                    provider: 'mock',
+                    model: 'v1',
+                    active: true
+                });
+                await defaultModel.save();
+                configs = [defaultModel];
+                logger.info('Created default MockModel for initial setup');
+            }
 
             if (configs && configs.length > 0) {
                 configs.forEach(config => {

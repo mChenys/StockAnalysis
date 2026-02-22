@@ -24,6 +24,18 @@ class NewsCrawler {
                 url: 'https://finance.yahoo.com/rss/topstories',
                 type: 'rss',
                 limit: 10
+            },
+            sina: {
+                name: '新浪7x24',
+                url: 'https://rss.sina.com.cn/news/allnews/finance.xml',
+                type: 'rss',
+                limit: 20
+            },
+            '36kr': {
+                name: '36氪',
+                url: 'https://36kr.com/feed',
+                type: 'rss',
+                limit: 20
             }
         };
     }
@@ -80,27 +92,48 @@ class NewsCrawler {
 
     async fetchRSSNews(sourceId, url, limit) {
         try {
-            const res = await axios.get(url);
+            if (!url || typeof url !== 'string' || !url.startsWith('http')) {
+                throw new Error(`Invalid RSS URL format for source: ${sourceId}`);
+            }
+
+            const res = await axios.get(url, {
+                timeout: 10000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                }
+            });
+
             const $ = cheerio.load(res.data, { xmlMode: true });
             const items = [];
             $('item').each((i, el) => {
                 if (i >= limit) return;
+                
+                const link = $(el).find('link').text().trim();
+                const title = $(el).find('title').text().trim();
+                const pubDateStr = $(el).find('pubDate').text().trim();
+                
+                if (!link || !title) return; // Skip items without necessary data
+                
                 items.push({
                     sourceId,
-                    url: $(el).find('link').text(),
-                    title: $(el).find('title').text(),
-                    content: $(el).find('description').text().replace(/<[^>]*>/g, ''),
-                    publishedAt: new Date($(el).find('pubDate').text()),
+                    url: link,
+                    title: title,
+                    content: $(el).find('description').text().replace(/<[^>]*>/g, '').trim(),
+                    publishedAt: pubDateStr ? new Date(pubDateStr) : new Date(),
                     relatedSymbols: []
                 });
             });
             return items;
-        } catch (e) { return []; }
+        } catch (e) {
+            logger.error(`RSS Fetch Error for ${sourceId} (${url}): ${e.message}`);
+            return [];
+        }
     }
 
     async saveNews(newsItems) {
         let savedCount = 0;
         let skippedCount = 0;
+        const newItems = [];
 
         // 批量情感评估与去重
         for (const item of newsItems) {
@@ -119,6 +152,7 @@ class NewsCrawler {
                 ]);
 
                 await news.save();
+                newItems.push(news);
                 savedCount++;
             } catch (error) {
                 logger.debug(`Save failed: ${error.message}`);
@@ -126,7 +160,7 @@ class NewsCrawler {
         }
 
         logger.info(`✅ Ingestion Complete: Saved ${savedCount}, Skipped ${skippedCount}`);
-        return { savedCount, skippedCount };
+        return { savedCount, skippedCount, newItems };
     }
 }
 

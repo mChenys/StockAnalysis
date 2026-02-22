@@ -41,8 +41,8 @@ router.get('/', authenticateToken, async (req, res) => {
 
 router.post('/ingest', authenticateToken, authorize('admin', 'analyst'), async (req, res) => {
     try {
-        const newsItems = await newsCrawler.fetchAll();
-        const stats = await newsCrawler.saveNews(newsItems);
+        // fetchAll() already calls saveNews() internally, just return the result
+        const stats = await newsCrawler.fetchAll();
         
         res.json({
             success: true,
@@ -57,8 +57,12 @@ router.post('/ingest', authenticateToken, authorize('admin', 'analyst'), async (
 
 router.get('/topics', authenticateToken, async (req, res) => {
     try {
-        const topics = await Topic.find().sort({ relevance: -1 }).limit(50);
-        res.json({ success: true, data: topics });
+        // In-memory mode: Topic.find() returns array, not query object
+        const topics = await Topic.find();
+        const sortedTopics = Array.isArray(topics)
+            ? topics.sort((a, b) => (b.relevance || 0) - (a.relevance || 0)).slice(0, 50)
+            : topics;
+        res.json({ success: true, data: sortedTopics });
     } catch (error) {
         logger.error('Get topics API error:', error);
         res.status(500).json({ success: false, message: 'Failed to retrieve topics' });
