@@ -1948,3 +1948,20 @@
 {"level":"info","message":"✅ System synchronized 1 AI nodes.","service":"stock-analysis-ai","timestamp":"2026-02-22T06:49:27.493Z"}
 {"level":"info","message":"New user registered: admin_1771742967493","service":"stock-analysis-ai","timestamp":"2026-02-22T06:49:27.595Z"}
 {"level":"info","message":"User logged in: admin_1771742967493","service":"stock-analysis-ai","timestamp":"2026-02-22T06:49:27.683Z"}
+{"level":"info","message":"✅ System synchronized 2 AI nodes.","service":"stock-analysis-ai","timestamp":"2026-02-22T06:49:42.696Z"}
+{"aiModels":true,"dataSources":true,"level":"warn","memory":{"arrayBuffers":18357983,"external":21914528,"heapTotal":35536896,"heapUsed":32361984,"rss":112377856},"message":"System health check detected issues:","pushService":false,"service":"stock-analysis-ai","timestamp":"2026-02-22T06:50:00.065Z","uptime":312.654889459}
+{"level":"error","message":"AI Engine Error:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:50:00.583Z"}
+{"level":"error","message":"Test failed for TestGPT:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:50:00.583Z"}
+{"level":"error","message":"Add model error:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:50:00.583Z"}
+{"level":"warn","message":"MongoDB not found, switching to In-Memory mode.","service":"stock-analysis-ai","timestamp":"2026-02-22T06:50:57.097Z"}
+{"level":"info","message":"Created default MockModel for initial setup","service":"stock-analysis-ai","timestamp":"2026-02-22T06:50:57.216Z"}
+{"level":"info","message":"✅ System synchronized 1 AI nodes.","service":"stock-analysis-ai","timestamp":"2026-02-22T06:50:57.216Z"}
+{"level":"info","message":"New user registered: admin_1771743057217","service":"stock-analysis-ai","timestamp":"2026-02-22T06:50:57.320Z"}
+{"level":"info","message":"User logged in: admin_1771743057217","service":"stock-analysis-ai","timestamp":"2026-02-22T06:50:57.409Z"}
+{"level":"error","message":"AI Engine Error:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:51:27.468Z"}
+{"level":"error","message":"Test failed for TestGPT:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:51:27.468Z"}
+{"level":"error","message":"Add model error:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:51:27.468Z"}
+{"level":"info","message":"✅ System synchronized 2 AI nodes.","service":"stock-analysis-ai","timestamp":"2026-02-22T06:51:27.472Z"}
+{"level":"error","message":"Yahoo Finance API error for AAPL:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:55:10.385Z"}
+{"level":"error","message":"Failed to get real-time price for AAPL: Failed to fetch Yahoo data for AAPL","service":"stock-analysis-ai","stack":"Error: Failed to fetch Yahoo data for AAPL\n    at StockDataCrawler.getYahooPrice (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/crawler/stockDataCrawler.js:134:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async StockDataCrawler.getRealTimePrice (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/crawler/stockDataCrawler.js:44:28)\n    at async TaskScheduler.checkDataSourcesHealth (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/scheduler/taskScheduler.js:461:13)\n    at async TaskScheduler.performHealthCheck (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/scheduler/taskScheduler.js:356:30)\n    at async Task._execution (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/scheduler/taskScheduler.js:144:13)","timestamp":"2026-02-22T06:55:10.385Z"}
+{"aiModels":true,"dataSources":false,"level":"warn","memory":{"arrayBuffers":18366343,"external":21922888,"heapTotal":36585472,"heapUsed":33042320,"rss":112623616},"message":"System health check detected issues:","pushService":false,"service":"stock-analysis-ai","timestamp":"2026-02-22T06:55:00.380Z","uptime":622.976397375}

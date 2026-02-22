@@ -291,3 +291,11 @@
 {"level":"error","message":"AI Engine Error:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:47:52.651Z"}
 {"level":"error","message":"Test failed for TestGPT:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:47:52.651Z"}
 {"level":"error","message":"Add model error:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:47:52.651Z"}
+{"level":"error","message":"AI Engine Error:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:50:00.583Z"}
+{"level":"error","message":"Test failed for TestGPT:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:50:00.583Z"}
+{"level":"error","message":"Add model error:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:50:00.583Z"}
+{"level":"error","message":"AI Engine Error:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:51:27.468Z"}
+{"level":"error","message":"Test failed for TestGPT:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:51:27.468Z"}
+{"level":"error","message":"Add model error:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:51:27.468Z"}
+{"level":"error","message":"Yahoo Finance API error for AAPL:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:55:10.385Z"}
+{"level":"error","message":"Failed to get real-time price for AAPL: Failed to fetch Yahoo data for AAPL","service":"stock-analysis-ai","stack":"Error: Failed to fetch Yahoo data for AAPL\n    at StockDataCrawler.getYahooPrice (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/crawler/stockDataCrawler.js:134:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async StockDataCrawler.getRealTimePrice (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/crawler/stockDataCrawler.js:44:28)\n    at async TaskScheduler.checkDataSourcesHealth (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/scheduler/taskScheduler.js:461:13)\n    at async TaskScheduler.performHealthCheck (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/scheduler/taskScheduler.js:356:30)\n    at async Task._execution (/Users/chenyousheng/work/workspace/node/StockAnalysis/src/scheduler/taskScheduler.js:144:13)","timestamp":"2026-02-22T06:55:10.385Z"}
