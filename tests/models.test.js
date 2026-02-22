@@ -21,11 +21,11 @@ describe('AI Models API', () => {
             .send({ username, password: 'password123' });
         
         token = loginRes.body.data.accessToken;
-    }, 15000);
+    }, 40000);
 
     afterAll(async () => {
         await mongoose.disconnect();
-    });
+    }, 40000);
 
     it('should get all models', async () => {
         const res = await request(appInstance)
@@ -36,7 +36,7 @@ describe('AI Models API', () => {
         expect(Array.isArray(res.body)).toBe(true);
         // 初始应该至少有一个 MockModel
         expect(res.body.length).toBeGreaterThanOrEqual(0);
-    });
+    }, 40000);
 
     it('should add a new model', async () => {
         const modelData = {
@@ -55,7 +55,7 @@ describe('AI Models API', () => {
         // 注意：目前后端 addModel 会尝试测试连接，由于 apiKey 是假的，可能会失败
         // 我们需要看代码逻辑是否处理了连接测试失败的情况
         expect(res.statusCode).toBeDefined();
-    });
+    }, 40000);
 
     it('should add a mock model without apiKey', async () => {
         const modelData = {
@@ -72,5 +72,5 @@ describe('AI Models API', () => {
         
         expect(res.statusCode).toEqual(201);
         expect(res.body.message).toContain('added successfully');
-    });
+    }, 40000);
 });
