@@ -1940,3 +1940,11 @@
 {"level":"info","message":"New user registered: admin_1771742848405","service":"stock-analysis-ai","timestamp":"2026-02-22T06:47:28.514Z"}
 {"level":"info","message":"User logged in: admin_1771742848405","service":"stock-analysis-ai","timestamp":"2026-02-22T06:47:28.602Z"}
 {"level":"info","message":"✅ System synchronized 2 AI nodes.","service":"stock-analysis-ai","timestamp":"2026-02-22T06:47:33.612Z"}
+{"level":"error","message":"AI Engine Error:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:47:52.651Z"}
+{"level":"error","message":"Test failed for TestGPT:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:47:52.651Z"}
+{"level":"error","message":"Add model error:","service":"stock-analysis-ai","timestamp":"2026-02-22T06:47:52.651Z"}
+{"level":"warn","message":"MongoDB not found, switching to In-Memory mode.","service":"stock-analysis-ai","timestamp":"2026-02-22T06:49:27.373Z"}
+{"level":"info","message":"Created default MockModel for initial setup","service":"stock-analysis-ai","timestamp":"2026-02-22T06:49:27.493Z"}
+{"level":"info","message":"✅ System synchronized 1 AI nodes.","service":"stock-analysis-ai","timestamp":"2026-02-22T06:49:27.493Z"}
+{"level":"info","message":"New user registered: admin_1771742967493","service":"stock-analysis-ai","timestamp":"2026-02-22T06:49:27.595Z"}
+{"level":"info","message":"User logged in: admin_1771742967493","service":"stock-analysis-ai","timestamp":"2026-02-22T06:49:27.683Z"}
