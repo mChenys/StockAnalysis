@@ -4,6 +4,11 @@ let socket;
 let currentModels = [];
 let currentUser = null;
 let token = localStorage.getItem('token');
+// Robustness: clear token if it's explicitly the string "null" or "undefined"
+if (token === 'null' || token === 'undefined') {
+    localStorage.removeItem('token');
+    token = null;
+}
 let lastAnalysisResult = null;
 
 function toggleAuth(isLogin) {

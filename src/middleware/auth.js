@@ -17,10 +17,10 @@ async function authenticateToken(req, res, next) {
 
     const token = authHeader.split(' ')[1];
 
-    if (!token) {
+    if (!token || token === 'null' || token === 'undefined') {
         return res.status(401).json({
             success: false,
-            message: 'Access token required'
+            message: 'Access token required or invalid'
         });
     }
 
