@@ -8,6 +8,14 @@ const scheduler = require('../scheduler/taskScheduler');
 const logger = require('../utils/logger');
 const { authenticateToken, authorize } = require('../middleware/auth');
 
+// ==== 开发模式状态（无需认证） ====
+router.get('/dev/status', (req, res) => {
+    res.json({
+        devMode: !!global.isInMemory,
+        message: global.isInMemory ? '开发模式：无需登录' : '生产模式：需要登录',
+    });
+});
+
 // ==== 仪表盘API ====
 router.get('/dashboard', authenticateToken, async (req, res) => {
     try {

@@ -30,36 +30,43 @@ class StockDataCrawler {
     }
 
     /**
-     * 获取股票实时价格
+     * 获取股票实时价格（自动多源降级）
      */
-    async getRealTimePrice(symbol, source = 'yahoo') {
-        try {
-            const cacheKey = `price_${symbol}_${source}`;
-            const cached = this.getFromCache(cacheKey);
-            if (cached) return cached;
+    async getRealTimePrice(symbol, source = 'auto') {
+        const cacheKey = `price_${symbol}`;
+        const cached = this.getFromCache(cacheKey);
+        if (cached) return cached;
 
-            let data;
-            switch (source.toLowerCase()) {
-                case 'yahoo':
-                    data = await this.getYahooPrice(symbol);
-                    break;
-                case 'sina':
-                    data = await this.getSinaPrice(symbol);
-                    break;
-                case 'eastmoney':
-                    data = await this.getEastMoneyPrice(symbol);
-                    break;
-                default:
-                    data = await this.getYahooPrice(symbol);
+        // 定义数据源优先级（自动降级）
+        const sources = source === 'auto'
+            ? ['yahoo', 'yahoo_v2', 'sina', 'eastmoney']
+            : [source];
+
+        const errors = [];
+        for (const src of sources) {
+            try {
+                let data;
+                switch (src) {
+                    case 'yahoo': data = await this.getYahooPrice(symbol); break;
+                    case 'yahoo_v2': data = await this.getYahooPriceV2(symbol); break;
+                    case 'sina': data = await this.getSinaPrice(symbol); break;
+                    case 'eastmoney': data = await this.getEastMoneyPrice(symbol); break;
+                    default: data = await this.getYahooPrice(symbol);
+                }
+                if (data) {
+                    logger.info(`[Crawler] Got price for ${symbol} via ${src}`);
+                    this.setCache(cacheKey, data);
+                    return data;
+                } else {
+                    throw new Error(`Provider ${src} returned empty data`);
+                }
+            } catch (err) {
+                errors.push(`${src}: ${err.message}`);
+                logger.warn(`[Crawler] ${src} failed for ${symbol}: ${err.message}, trying next source...`);
             }
-
-            this.setCache(cacheKey, data);
-            return data;
-
-        } catch (error) {
-            logger.error(`Failed to get real-time price for ${symbol}:`, error);
-            throw error;
         }
+
+        throw new Error(`所有数据源均无法获取 ${symbol} 的价格数据: ${errors.join('; ')}`);
     }
 
     /**
@@ -86,53 +93,98 @@ class StockDataCrawler {
     }
 
     async getYahooPrice(symbol) {
-        try {
-            const response = await axios.get(
-                `${this.dataSources.yahoo.baseUrl}/${symbol}`,
-                {
-                    timeout: 10000,
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                    }
+        const response = await axios.get(
+            `${this.dataSources.yahoo.baseUrl}/${symbol}`,
+            {
+                timeout: 30000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                    'Accept': 'application/json,text/html,*/*',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Origin': 'https://finance.yahoo.com',
+                    'Referer': 'https://finance.yahoo.com/'
                 }
-            );
-
-            const result = response.data.chart.result[0];
-            const meta = result.meta;
-            const quote = result.indicators.quote[0];
-
-            // 1. 基于美东时间计算当前时段
-            const session = this.getMarketSession(meta);
-
-            // 2. 根据时段提取最相关的价格
-            let currentPrice = meta.regularMarketPrice;
-            if (session === '盘前') currentPrice = meta.preMarketPrice || currentPrice;
-            if (session === '盘后' || session === '夜盘') currentPrice = meta.postMarketPrice || meta.extendedMarketPrice || currentPrice;
-
-            // 3. 计算涨跌幅
-            let changePercent = '0.00';
-            if (meta.previousClose) {
-                changePercent = ((currentPrice - meta.previousClose) / meta.previousClose * 100).toFixed(2);
             }
+        );
 
-            return {
-                symbol: symbol,
-                currentPrice: currentPrice,
-                session: session,
-                previousClose: meta.previousClose,
-                changePercent: changePercent,
-                volume: quote.volume[quote.volume.length - 1],
-                marketCap: meta.marketCap,
-                high: meta.regularMarketDayHigh,
-                low: meta.regularMarketDayLow,
-                timestamp: new Date(),
-                source: 'yahoo'
-            };
+        const result = response.data.chart.result[0];
+        const meta = result.meta;
+        const quote = result.indicators.quote[0];
 
-        } catch (error) {
-            logger.error(`Yahoo Finance API error for ${symbol}:`, error.message);
-            throw new Error(`Failed to fetch Yahoo data for ${symbol}`);
+        const session = this.getMarketSession(meta);
+
+        let currentPrice = meta.regularMarketPrice;
+        if (session === '盘前') currentPrice = meta.preMarketPrice || currentPrice;
+        if (session === '盘后' || session === '夜盘') currentPrice = meta.postMarketPrice || meta.extendedMarketPrice || currentPrice;
+
+        let changePercent = '0.00';
+        if (meta.previousClose) {
+            changePercent = ((currentPrice - meta.previousClose) / meta.previousClose * 100).toFixed(2);
         }
+
+        return {
+            symbol, currentPrice, session,
+            previousClose: meta.previousClose,
+            changePercent,
+            volume: quote.volume ? quote.volume[quote.volume.length - 1] : 0,
+            marketCap: meta.marketCap,
+            high: meta.regularMarketDayHigh,
+            low: meta.regularMarketDayLow,
+            timestamp: new Date(),
+            source: 'yahoo_v8'
+        };
+    }
+
+    /**
+     * Yahoo Finance 备用方案：使用 quote summary API
+     */
+    async getYahooPriceV2(symbol) {
+        const response = await axios.get(
+            `https://query1.finance.yahoo.com/v6/finance/quote`,
+            {
+                params: {
+                    symbols: symbol,
+                    lang: 'en-US',
+                    region: 'US'
+                },
+                timeout: 30000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                    'Accept': '*/*',
+                    'Origin': 'https://finance.yahoo.com',
+                    'Referer': 'https://finance.yahoo.com/'
+                }
+            }
+        );
+
+        const quote = response.data?.quoteResponse?.result?.[0];
+        if (!quote) throw new Error(`No data returned for ${symbol}`);
+
+        const session = this.getMarketSession({});
+
+        let currentPrice = quote.regularMarketPrice;
+        if (session === '盘前') currentPrice = quote.preMarketPrice || currentPrice;
+        if (session === '盘后' || session === '夜盘') currentPrice = quote.postMarketPrice || currentPrice;
+
+        let changePercent = '0.00';
+        if (quote.regularMarketPreviousClose) {
+            changePercent = ((currentPrice - quote.regularMarketPreviousClose) / quote.regularMarketPreviousClose * 100).toFixed(2);
+        }
+
+        return {
+            symbol,
+            currentPrice,
+            session,
+            previousClose: quote.regularMarketPreviousClose,
+            changePercent,
+            volume: quote.regularMarketVolume || 0,
+            marketCap: quote.marketCap,
+            high: quote.regularMarketDayHigh,
+            low: quote.regularMarketDayLow,
+            timestamp: new Date(),
+            source: 'yahoo_v6'
+        };
     }
 
     /**
@@ -157,8 +209,10 @@ class StockDataCrawler {
             const data = response.data;
             const match = data.match(/="([^"]+)"/);
             
-            if (!match) {
-                throw new Error('Invalid response format');
+            // 如果没匹配到，检查是不是该符号在新浪接口不存在（比如美股格式不对）
+            if (!match || match[1].length < 10) {
+                logger.debug(`[Crawler] Sina response for ${symbol} empty or invalid`);
+                return null; // 返回 null 让系统尝试下一个数据源
             }
 
             const parts = match[1].split(',');
@@ -237,7 +291,13 @@ class StockDataCrawler {
                         period2: endTime,
                         interval: interval
                     },
-                    timeout: 15000
+                    timeout: 30000,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                        'Accept': 'application/json,text/html,*/*',
+                        'Origin': 'https://finance.yahoo.com',
+                        'Referer': 'https://finance.yahoo.com/'
+                    }
                 }
             );
 

@@ -6,6 +6,18 @@ const logger = require('../utils/logger');
  * 验证JWT令牌的中间件
  */
 async function authenticateToken(req, res, next) {
+    // 🔧 开发模式（In-Memory / 无 MongoDB）：跳过认证，自动注入 admin 用户
+    if (global.isInMemory) {
+        req.user = {
+            _id: 'dev-admin',
+            username: 'dev-admin',
+            roles: ['admin'],
+            active: true,
+            hasAnyRole: (...roles) => true,
+        };
+        return next();
+    }
+
     const authHeader = req.headers['authorization'];
 
     if (!authHeader) {
@@ -69,6 +81,11 @@ async function authenticateToken(req, res, next) {
  */
 function authorize(...roles) {
     return (req, res, next) => {
+        // 🔧 开发模式：跳过权限检查
+        if (global.isInMemory) {
+            return next();
+        }
+
         if (!req.user) {
             return res.status(401).json({
                 success: false,

@@ -35,7 +35,7 @@ describe('News System API', () => {
         expect(res.statusCode).toEqual(200);
         expect(res.body.success).toBe(true);
         expect(res.body.stats).toHaveProperty('savedCount');
-    }, 20000); // 抓取可能较慢
+    }, 60000); // 抓取可能较慢
 
     it('should get news list', async () => {
         const res = await request(appInstance)

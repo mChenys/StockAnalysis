@@ -55,10 +55,15 @@ async function createApp() {
         app.use('/api/auth', require('./routes/auth'));
         app.use('/api/users', require('./routes/users'));
         app.use('/api/news', require('./routes/news'));
+        app.use('/api/agent', require('./routes/agent'));
         app.use('/api', require('./routes/api'));
 
         app.get('/', (req, res) => {
             res.sendFile(path.join(__dirname, '../public/index.html'));
+        });
+
+        app.get('/agent', (req, res) => {
+            res.sendFile(path.join(__dirname, '../public/agent.html'));
         });
 
         await modelManager.loadModels();

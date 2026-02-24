@@ -47,7 +47,23 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeSocket();
 });
 
-function checkAuth() {
+async function checkAuth() {
+    // 检查服务器是否为开发模式（无 MongoDB）
+    try {
+        const devRes = await fetch('/api/dev/status');
+        const devData = await devRes.json();
+        if (devData.devMode) {
+            // 开发模式：跳过登录，设置 dev token
+            token = 'dev-mode';
+            localStorage.setItem('token', token);
+            loadDashboard();
+            showSection('dashboard');
+            return;
+        }
+    } catch (e) {
+        // 如果无法获取 dev 状态，继续正常流程
+    }
+
     if (!token) {
         showAuthOnly();
     } else {
@@ -128,19 +144,47 @@ function updateModelOptions(provider) {
     const baseUrlInput = document.getElementById('baseUrl');
     if (!modelSelect) return;
     
-    // 内置 Google Gemma 3 模型选项
+    // 内置常用模型选项
     const modelOptions = {
         'openai': [
+            { value: 'gemini-2.5-flash', text: 'Google - Gemini 2.5 Flash (推荐)' },
+            { value: 'gemini-1.5-pro', text: 'Google - Gemini 1.5 Pro' },
             { value: 'google/gemma-3-27b-it', text: 'NVIDIA - Gemma-3-27B' },
-            { value: 'z-ai/glm4.7', text: 'NVIDIA - GLM-4.7' },
-            { value: 'gpt-4o', text: 'OpenAI - GPT-4o' }
+            { value: 'gpt-4o', text: 'OpenAI - GPT-4o' },
+            { value: 'custom', text: '--- 自定义输入 ---' }
         ],
-        'claude': [{ value: 'claude-3-opus-20240229', text: 'Claude-3 Opus' }]
+        'claude': [
+            { value: 'claude-3-5-sonnet-20240620', text: 'Claude 3.5 Sonnet' },
+            { value: 'custom', text: '--- 自定义输入 ---' }
+        ]
     };
     
     if (provider && modelOptions[provider]) {
         modelSelect.innerHTML = modelOptions[provider].map(option => `<option value="${option.value}">${option.text}</option>`).join('');
-        if (baseUrlInput) baseUrlInput.value = provider === 'openai' ? 'https://api.openai.com/v1' : '';
+
+        // 监听自定义输入逻辑
+        modelSelect.onchange = function () {
+            if (this.value === 'custom') {
+                const customModel = prompt('请输入自定义模型 ID (例如: deepseek-chat):');
+                if (customModel) {
+                    const opt = document.createElement('option');
+                    opt.value = customModel;
+                    opt.text = customModel;
+                    opt.selected = true;
+                    this.add(opt, this.firstChild);
+                } else {
+                    this.selectedIndex = 0;
+                }
+            }
+        };
+
+        if (baseUrlInput) {
+            if (provider === 'openai') {
+                baseUrlInput.value = 'https://generativelanguage.googleapis.com/v1beta/openai/';
+            } else {
+                baseUrlInput.value = '';
+            }
+        }
     } else {
         modelSelect.innerHTML = '<option value="">请选择...</option>';
     }

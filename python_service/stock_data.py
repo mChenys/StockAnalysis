@@ -1,0 +1,289 @@
+"""
+Stock Data Service — powered by yfinance
+Provides reliable stock data fetching with caching and error handling.
+"""
+
+import yfinance as yf
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any, List
+import logging
+import time
+
+logger = logging.getLogger(__name__)
+
+# Simple in-memory cache
+_cache: Dict[str, Any] = {}
+CACHE_TTL = 300  # 5 minutes
+
+
+def _get_cached(key: str):
+    if key in _cache:
+        entry = _cache[key]
+        if time.time() - entry["ts"] < CACHE_TTL:
+            return entry["data"]
+    return None
+
+
+def _set_cached(key: str, data: Any):
+    _cache[key] = {"data": data, "ts": time.time()}
+
+
+# ─── Real-time Price ────────────────────────────────────────
+
+def get_stock_price(symbol: str) -> Dict[str, Any]:
+    """Get real-time stock price and basic info."""
+    cache_key = f"price_{symbol}"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    ticker = yf.Ticker(symbol)
+    info = ticker.info
+
+    # Determine market session based on US Eastern time
+    now_et = datetime.now()
+    hour = now_et.hour
+    if 4 <= hour < 9:
+        session = "盘前"
+    elif 9 <= hour < 16:
+        session = "盘中"
+    elif 16 <= hour < 20:
+        session = "盘后"
+    else:
+        session = "休市"
+
+    current_price = info.get("currentPrice") or info.get("regularMarketPrice", 0)
+    prev_close = info.get("previousClose") or info.get("regularMarketPreviousClose", 0)
+
+    change_percent = 0.0
+    if prev_close and prev_close > 0:
+        change_percent = round((current_price - prev_close) / prev_close * 100, 2)
+
+    result = {
+        "symbol": symbol.upper(),
+        "currentPrice": current_price,
+        "previousClose": prev_close,
+        "changePercent": change_percent,
+        "session": session,
+        "high": info.get("dayHigh") or info.get("regularMarketDayHigh", 0),
+        "low": info.get("dayLow") or info.get("regularMarketDayLow", 0),
+        "volume": info.get("volume") or info.get("regularMarketVolume", 0),
+        "marketCap": info.get("marketCap", 0),
+        "name": info.get("shortName", symbol),
+        "sector": info.get("sector", "N/A"),
+        "industry": info.get("industry", "N/A"),
+        "pe_ratio": info.get("trailingPE", None),
+        "forward_pe": info.get("forwardPE", None),
+        "dividend_yield": info.get("dividendYield", None),
+        "fifty_two_week_high": info.get("fiftyTwoWeekHigh", None),
+        "fifty_two_week_low": info.get("fiftyTwoWeekLow", None),
+        "timestamp": datetime.now().isoformat(),
+        "source": "yfinance"
+    }
+
+    _set_cached(cache_key, result)
+    return result
+
+
+# ─── Historical Data ────────────────────────────────────────
+
+def get_historical_data(symbol: str, period: str = "3mo", interval: str = "1d") -> Dict[str, Any]:
+    """Get historical OHLCV data."""
+    cache_key = f"hist_{symbol}_{period}_{interval}"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    ticker = yf.Ticker(symbol)
+    df = ticker.history(period=period, interval=interval)
+
+    if df.empty:
+        return {"symbol": symbol, "period": period, "dataPoints": 0, "data": []}
+
+    # Only return last 60 data points to keep API response manageable
+    df = df.tail(60)
+
+    data = []
+    for idx, row in df.iterrows():
+        data.append({
+            "date": idx.strftime("%Y-%m-%d"),
+            "open": round(row["Open"], 2),
+            "high": round(row["High"], 2),
+            "low": round(row["Low"], 2),
+            "close": round(row["Close"], 2),
+            "volume": int(row["Volume"])
+        })
+
+    result = {
+        "symbol": symbol.upper(),
+        "period": period,
+        "interval": interval,
+        "dataPoints": len(data),
+        "data": data
+    }
+
+    _set_cached(cache_key, result)
+    return result
+
+
+# ─── Technical Indicators ───────────────────────────────────
+
+def get_technical_indicators(symbol: str, period: str = "1y") -> Dict[str, Any]:
+    """Calculate technical indicators from historical data."""
+    cache_key = f"tech_{symbol}_{period}"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    ticker = yf.Ticker(symbol)
+    df = ticker.history(period=period)
+
+    if df.empty or len(df) < 26:
+        return {"symbol": symbol, "error": "Insufficient data for technical analysis"}
+
+    closes = df["Close"]
+
+    # SMA
+    sma20 = round(closes.rolling(20).mean().iloc[-1], 2) if len(closes) >= 20 else None
+    sma50 = round(closes.rolling(50).mean().iloc[-1], 2) if len(closes) >= 50 else None
+    sma200 = round(closes.rolling(200).mean().iloc[-1], 2) if len(closes) >= 200 else None
+
+    # EMA
+    ema12 = round(closes.ewm(span=12).mean().iloc[-1], 2)
+    ema26 = round(closes.ewm(span=26).mean().iloc[-1], 2)
+
+    # RSI (14)
+    delta = closes.diff()
+    gain = delta.where(delta > 0, 0).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+    rs = gain / loss
+    rsi = round((100 - 100 / (1 + rs)).iloc[-1], 2)
+
+    # MACD
+    macd_line = closes.ewm(span=12).mean() - closes.ewm(span=26).mean()
+    signal_line = macd_line.ewm(span=9).mean()
+    histogram = macd_line - signal_line
+
+    # Bollinger Bands
+    bb_sma = closes.rolling(20).mean()
+    bb_std = closes.rolling(20).std()
+    bb_upper = round((bb_sma + 2 * bb_std).iloc[-1], 2) if len(closes) >= 20 else None
+    bb_middle = round(bb_sma.iloc[-1], 2) if len(closes) >= 20 else None
+    bb_lower = round((bb_sma - 2 * bb_std).iloc[-1], 2) if len(closes) >= 20 else None
+
+    current_price = round(closes.iloc[-1], 2)
+
+    result = {
+        "symbol": symbol.upper(),
+        "currentPrice": current_price,
+        "sma20": sma20,
+        "sma50": sma50,
+        "sma200": sma200,
+        "ema12": ema12,
+        "ema26": ema26,
+        "rsi": rsi,
+        "macd": {
+            "macd": round(macd_line.iloc[-1], 4),
+            "signal": round(signal_line.iloc[-1], 4),
+            "histogram": round(histogram.iloc[-1], 4)
+        },
+        "bollinger": {
+            "upper": bb_upper,
+            "middle": bb_middle,
+            "lower": bb_lower
+        },
+        "trend": "bullish" if current_price > (sma50 or 0) else "bearish",
+        "rsi_signal": "超买" if rsi > 70 else ("超卖" if rsi < 30 else "中性"),
+        "timestamp": datetime.now().isoformat(),
+        "source": "yfinance"
+    }
+
+    _set_cached(cache_key, result)
+    return result
+
+
+# ─── Stock Comparison ───────────────────────────────────────
+
+def compare_stocks(symbols: List[str]) -> Dict[str, Any]:
+    """Compare multiple stocks side by side."""
+    results = []
+    for symbol in symbols:
+        try:
+            price_data = get_stock_price(symbol)
+            tech_data = get_technical_indicators(symbol)
+            results.append({
+                "symbol": symbol.upper(),
+                "name": price_data.get("name", symbol),
+                "currentPrice": price_data["currentPrice"],
+                "changePercent": price_data["changePercent"],
+                "volume": price_data["volume"],
+                "marketCap": price_data.get("marketCap", 0),
+                "pe_ratio": price_data.get("pe_ratio"),
+                "rsi": tech_data.get("rsi", "N/A"),
+                "sma20": tech_data.get("sma20", "N/A"),
+                "sma50": tech_data.get("sma50", "N/A"),
+                "macd": tech_data.get("macd", {}).get("macd", "N/A"),
+                "trend": tech_data.get("trend", "N/A"),
+                "error": None
+            })
+        except Exception as e:
+            results.append({"symbol": symbol, "error": str(e)})
+
+    return {"comparison": results}
+
+
+# ─── Portfolio Analysis ─────────────────────────────────────
+
+def analyze_portfolio(holdings: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Analyze a portfolio of stock holdings."""
+    portfolio_data = []
+    for h in holdings:
+        try:
+            price_data = get_stock_price(h["symbol"])
+            current_price = price_data["currentPrice"]
+            shares = h.get("shares", 0)
+            avg_cost = h.get("avgCost", 0)
+
+            current_value = current_price * shares
+            cost_basis = avg_cost * shares
+            pnl = current_value - cost_basis
+            pnl_pct = round(pnl / cost_basis * 100, 2) if cost_basis > 0 else 0
+
+            portfolio_data.append({
+                "symbol": h["symbol"].upper(),
+                "name": price_data.get("name", h["symbol"]),
+                "shares": shares,
+                "avgCost": avg_cost,
+                "currentPrice": current_price,
+                "currentValue": round(current_value, 2),
+                "costBasis": round(cost_basis, 2),
+                "pnl": round(pnl, 2),
+                "pnlPercent": pnl_pct,
+                "changeToday": price_data["changePercent"],
+                "weight": 0  # will be calculated below
+            })
+        except Exception as e:
+            portfolio_data.append({"symbol": h["symbol"], "error": str(e)})
+
+    # Calculate weights
+    total_value = sum(h.get("currentValue", 0) for h in portfolio_data if "error" not in h or h.get("error") is None)
+    if total_value > 0:
+        for h in portfolio_data:
+            if h.get("currentValue"):
+                h["weight"] = round(h["currentValue"] / total_value * 100, 2)
+
+    total_cost = sum(h.get("costBasis", 0) for h in portfolio_data if h.get("costBasis"))
+    total_pnl = total_value - total_cost
+
+    return {
+        "holdings": portfolio_data,
+        "summary": {
+            "totalValue": round(total_value, 2),
+            "totalCost": round(total_cost, 2),
+            "totalPnl": round(total_pnl, 2),
+            "totalPnlPercent": round(total_pnl / total_cost * 100, 2) if total_cost > 0 else 0,
+            "positionCount": len(portfolio_data)
+        }
+    }
