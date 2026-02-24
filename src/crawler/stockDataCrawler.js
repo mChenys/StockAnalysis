@@ -39,7 +39,7 @@ class StockDataCrawler {
 
         // 定义数据源优先级（自动降级）
         const sources = source === 'auto'
-            ? ['yahoo', 'yahoo_v2', 'sina', 'eastmoney']
+            ? ['yfinance', 'yahoo', 'yahoo_v2', 'sina', 'eastmoney']
             : [source];
 
         const errors = [];
@@ -47,6 +47,7 @@ class StockDataCrawler {
             try {
                 let data;
                 switch (src) {
+                    case 'yfinance': data = await this.getYfinancePrice(symbol); break;
                     case 'yahoo': data = await this.getYahooPrice(symbol); break;
                     case 'yahoo_v2': data = await this.getYahooPriceV2(symbol); break;
                     case 'sina': data = await this.getSinaPrice(symbol); break;
@@ -70,8 +71,43 @@ class StockDataCrawler {
     }
 
     /**
-     * 从Yahoo Finance获取数据
+     * 从本地 Python 服务获取价格 (yfinance)
      */
+    async getYfinancePrice(symbol) {
+        const yfSymbol = this.convertToYfinanceSymbol(symbol);
+        const response = await axios.post(
+            `http://localhost:8000/api/stock/price`,
+            { symbol: yfSymbol },
+            { timeout: 15000 }
+        );
+        if (!response.data || !response.data.success) {
+            throw new Error("Python yfinance service returned failure");
+        }
+        const data = response.data.data;
+        if (!data.currentPrice) {
+            throw new Error("yfinance returned empty price");
+        }
+
+        let changePercent = '0.00';
+        if (data.previousClose && data.currentPrice) {
+            changePercent = (((data.currentPrice - data.previousClose) / data.previousClose) * 100).toFixed(2);
+        }
+
+        return {
+            symbol: data.symbol,
+            currentPrice: data.currentPrice,
+            session: this.getMarketSession({}),
+            previousClose: data.previousClose,
+            changePercent: changePercent,
+            volume: data.volume,
+            marketCap: data.marketCap,
+            high: data.currentPrice, // Simplified
+            low: data.currentPrice,  // Simplified
+            timestamp: new Date(),
+            source: 'yfinance_direct'
+        };
+    }
+
     /**
      * 根据美东时间精准判定当前市场时段
      */
@@ -279,40 +315,26 @@ class StockDataCrawler {
             const cached = this.getFromCache(cacheKey);
             if (cached) return cached;
 
-            // 使用Yahoo Finance获取历史数据
-            const endTime = Math.floor(Date.now() / 1000);
-            const startTime = this.getStartTime(period, endTime);
-
-            const response = await axios.get(
-                `${this.dataSources.yahoo.baseUrl}/${symbol}`,
-                {
-                    params: {
-                        period1: startTime,
-                        period2: endTime,
-                        interval: interval
-                    },
-                    timeout: 30000,
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-                        'Accept': 'application/json,text/html,*/*',
-                        'Origin': 'https://finance.yahoo.com',
-                        'Referer': 'https://finance.yahoo.com/'
-                    }
-                }
+            // 调用本地 Python yfinance 服务，绕过 Yahoo 速率限制
+            const yfSymbol = this.convertToYfinanceSymbol(symbol);
+            const response = await axios.post(
+                `http://localhost:8000/api/stock/history`,
+                { symbol: yfSymbol, period, interval },
+                { timeout: 30000 }
             );
 
-            const result = response.data.chart.result[0];
-            const timestamps = result.timestamp;
-            const quotes = result.indicators.quote[0];
+            if (!response.data || !response.data.success) {
+                throw new Error("Python yfinance service returned failure");
+            }
 
-            const historicalData = timestamps.map((timestamp, index) => ({
-                date: new Date(timestamp * 1000),
-                open: quotes.open[index],
-                high: quotes.high[index],
-                low: quotes.low[index],
-                close: quotes.close[index],
-                volume: quotes.volume[index]
-            })).filter(item => item.close !== null);
+            const historicalData = response.data.data.map(item => ({
+                date: new Date(item.date),
+                open: item.open,
+                high: item.high,
+                low: item.low,
+                close: item.close,
+                volume: item.volume
+            }));
 
             this.setCache(cacheKey, historicalData, 30 * 60 * 1000); // 30分钟缓存
             return historicalData;
@@ -469,6 +491,19 @@ class StockDataCrawler {
     /**
      * 工具方法
      */
+    convertToYfinanceSymbol(symbol) {
+        // 如果是纯6位数字，则判定为A股
+        if (/^\d{6}$/.test(symbol)) {
+            if (symbol.startsWith('6')) {
+                return `${symbol}.SS`; // 沪市
+            } else if (symbol.startsWith('0') || symbol.startsWith('3')) {
+                return `${symbol}.SZ`; // 深市/创业板
+            } else if (symbol.startsWith('8') || symbol.startsWith('4')) {
+                return `${symbol}.BJ`; // 北交所
+            }
+        }
+        return symbol; // 非6位纯数字，或者不符合上述规则，则原样返回
+    }
     convertToSinaSymbol(symbol) {
         // 美股转换为新浪格式
         return `us_${symbol.toLowerCase()}`;

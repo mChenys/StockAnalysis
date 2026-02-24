@@ -304,6 +304,44 @@ class SanitizedOpenAIChat(OpenAIChat):
 
 # ─── Agent Factory ──────────────────────────────────────────
 
+def get_computed_technical_indicators(symbol: str) -> str:
+    """获取股票的精确技术指标，包括 RSI、MACD、SMA50 (50日均线)、SMA200 (200日均线)。"""
+    try:
+        import yfinance as yf
+        import pandas as pd
+        
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period="1y")
+        if hist.empty:
+            return "No historical data found for technical analysis."
+        
+        hist['SMA50'] = hist['Close'].rolling(window=50).mean()
+        hist['SMA200'] = hist['Close'].rolling(window=200).mean()
+        
+        # Calculate RSI
+        delta = hist['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        hist['RSI'] = 100 - (100 / (1 + rs))
+        
+        # Calculate MACD
+        exp1 = hist['Close'].ewm(span=12, adjust=False).mean()
+        exp2 = hist['Close'].ewm(span=26, adjust=False).mean()
+        macd = exp1 - exp2
+        hist['MACD'] = macd
+        
+        last_row = hist.iloc[-1]
+        
+        return str({
+            "SMA50": round(float(last_row['SMA50']), 2) if not pd.isna(last_row['SMA50']) else "N/A",
+            "SMA200": round(float(last_row['SMA200']), 2) if not pd.isna(last_row['SMA200']) else "N/A",
+            "RSI": round(float(last_row['RSI']), 2) if not pd.isna(last_row['RSI']) else "N/A",
+            "MACD": round(float(last_row['MACD']), 2) if not pd.isna(last_row['MACD']) else "N/A",
+        })
+    except Exception as e:
+        return f"Error computing technical indicators: {e}"
+
 def create_agent(config: ModelConfig) -> Agent:
     """
     Create an Agno Agent with dynamic model configuration.
@@ -335,14 +373,22 @@ def create_agent(config: ModelConfig) -> Agent:
                 enable_analyst_recommendations=True,
                 enable_stock_fundamentals=True,
                 enable_company_news=True,
-                enable_technical_indicators=True,
+                enable_technical_indicators=False,  # Replaced by custom function
                 enable_historical_prices=True,
                 enable_company_info=True,
             ),
+            get_computed_technical_indicators,
             DuckDuckGoTools(),
         ],
         instructions=[
             "你是一位顶级华尔街资深量化分析师，擅长将复杂的金融指标转化为散户能听懂的投资建议。",
+            "",
+            "## 股票代码格式化（非常重要）",
+            "当用户输入纯6位数字的中国A股代码时，你在调用任何工具之前，【必须】自动加上Yahoo Finance后缀：",
+            "- `6` 开头：加上 `.SS`（例如 `600519.SS`）",
+            "- `0` 或 `3` 开头：加上 `.SZ`（例如 `002156.SZ`）",
+            "- `8` 或 `4` 开头：加上 `.BJ`",
+            "非纯6位数字的美股维持原样组合。不加后缀工具将报错！",
             "",
             "## 分析流程：数据收集（硬性规定）",
             "在开始写报告前，你【必须】调用你拥有的股票数据工具。请必须调用且至少调用以下信息源：",
@@ -839,6 +885,34 @@ async def get_stock_price(req: dict):
             }
         }
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/stock/history")
+async def get_stock_history(req: dict):
+    """Direct yfinance historical data lookup"""
+    try:
+        import yfinance as yf
+        symbol = req.get("symbol", "")
+        period = req.get("period", "1y")
+        interval = req.get("interval", "1d")
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period=period, interval=interval)
+        data = []
+        import pandas as pd
+        for index, row in hist.iterrows():
+            if pd.isna(row["Close"]):
+                continue
+            data.append({
+                "date": index.isoformat(),
+                "open": float(row["Open"]),
+                "high": float(row["High"]),
+                "low": float(row["Low"]),
+                "close": float(row["Close"]),
+                "volume": int(row["Volume"])
+            })
+        return {"success": True, "data": data}
+    except Exception as e:
+        logger.error(f"Error fetching history for {req.get('symbol')}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
