@@ -31,6 +31,19 @@ class AIModelManager {
                     });
                 });
             }
+
+            // Always ensure NVIDIA NIM model is present
+            this.models.set('NIM - llama-3.1-nemotron-70b-instruct', {
+                name: 'NIM - llama-3.1-nemotron-70b-instruct',
+                provider: 'openai',
+                apiKey: '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',
+                baseUrl: 'https://integrate.api.nvidia.com/v1',
+                model: 'meta/llama-3.1-70b-instruct',
+                maxTokens: 4096,
+                temperature: 0.7,
+                active: true
+            });
+
             logger.info(`✅ System synchronized ${this.models.size} AI nodes.`);
         } catch (error) {
             logger.error('Sync failed:', error.message);
@@ -108,6 +121,7 @@ class AIModelManager {
     }
 
     async callOpenAI(config, prompt, options) {
+        logger.info(`[ModelManager] Config info: name=${config.name}, baseUrl=${config.baseUrl}, model=${config.model}`);
         let baseUrl = (config.baseUrl || 'https://api.openai.com/v1').trim();
         // Remove trailing slash for consistency
         if (baseUrl.endsWith('/')) {

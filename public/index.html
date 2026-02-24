@@ -137,6 +137,22 @@
                 <!-- 模型管理模块 -->
                 <div id="models" class="section" style="display: none;">
                     <div class="section-header"><h2>AI模型集群</h2><button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addModelModal"><i class="bi bi-plus"></i> 添加模型</button></div>
+                    <!-- NVIDIA NIM Zone -->
+                    <div class="card mb-4 border-0 shadow-sm bg-light">
+                        <div class="card-body">
+                            <h5 class="card-title fw-bold text-success"><i class="bi bi-nvidia"></i> NVIDIA NIM 自动发现专区</h5>
+                            <p class="card-text text-muted small">输入您的 NVIDIA 开发者 API Key，一键获取当前最新且可用的 NIM 大模型列表。</p>
+                            <div class="input-group mb-3">
+                                <input type="password" class="form-control" id="nvidia-api-key" placeholder="nvapi-...">
+                                <button class="btn btn-success" type="button" id="fetch-nvidia-models-btn">搜索可用模型</button>
+                            </div>
+                            <div id="nvidia-search-spinner" class="d-none text-center my-3">
+                                <div class="spinner-border text-success spinner-border-sm"></div> 正在同步 NVIDIA 模型列表...
+                            </div>
+                            <div class="row" id="nvidia-models-container"></div>
+                        </div>
+                    </div>
+
                     <div class="row" id="models-container"></div>
                 </div>
             </main>

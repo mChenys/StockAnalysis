@@ -99,8 +99,11 @@ class SanitizedOpenAIChat(OpenAIChat):
                             func_def.pop(_internal_key, None)
             logger.debug(f"[SanitizedOpenAIChat] Cleaned {len(params['tools'])} tool definitions")
 
-        # 2) Remove parallel_tool_calls (Gemini doesn't support it)
-        params.pop("parallel_tool_calls", None)
+        # 2) Remove or disable parallel_tool_calls (NVIDIA 405b model crashes otherwise)
+        if "tools" in params and len(params["tools"]) > 0:
+            params["parallel_tool_calls"] = False
+        else:
+            params.pop("parallel_tool_calls", None)
 
         # 3) Remove store (Gemini doesn't support it)
         params.pop("store", None)
@@ -655,6 +658,8 @@ async def agent_chat_stream(req: AgentRequest):
             return "⚠️ 请求超时，请稍后重试"
         if 'connection' in err_str.lower():
             return "⚠️ 无法连接到 AI 服务，请检查网络"
+        if 'tool_choice' in err_str or 'tool-call-parser' in err_str or 'enable-auto-tool-choice' in err_str or 'function' in err_str.lower() and 'support' in err_str.lower():
+            return "⚠️ 当前模型不支持工具调用（Agent 功能）。请在【模型管理】中切换到支持工具调用的模型，例如 Llama 3.1 Instruct 系列。"
         return f"❌ {err_str}"
 
     def generate_events():

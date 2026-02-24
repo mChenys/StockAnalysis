@@ -111,6 +111,12 @@ function setupGlobalEventListeners() {
             document.getElementById('favorites-detail-view').style.display = 'none';
             document.getElementById('favorites-list-view').style.display = 'block';
         }
+
+        if (target.id === 'fetch-nvidia-models-btn') fetchNvidiaModels();
+        if (target.matches('.add-nvidia-model-btn')) {
+            const mId = target.dataset.nvidiaModelId;
+            addNvidiaModel(mId);
+        }
     });
 
     document.addEventListener('submit', async (e) => {
@@ -281,4 +287,115 @@ async function saveModel() {
         const result = await apiFetch('/api/models', { method: 'POST', body: JSON.stringify({ ...data, active: form.active.checked }) });
         if (result) { bootstrap.Modal.getInstance(document.getElementById('addModelModal')).hide(); form.reset(); loadModels(); showNotification('成功', '节点已部署', 'success'); }
     } catch (e) { showNotification('部署失败', e.message, 'danger'); }
+}
+
+async function fetchNvidiaModels() {
+    const apiKey = document.getElementById('nvidia-api-key').value.trim();
+    if (!apiKey) return showNotification('错误', '请输入 NVIDIA API Key', 'danger');
+
+    document.getElementById('nvidia-search-spinner').classList.remove('d-none');
+    document.getElementById('fetch-nvidia-models-btn').disabled = true;
+    const container = document.getElementById('nvidia-models-container');
+    container.innerHTML = '';
+
+    try {
+        const result = await apiFetch('/api/nvidia-models', { method: 'POST', body: JSON.stringify({ apiKey }) });
+        if (result && result.data && Array.isArray(result.data)) {
+            // 1. 智能筛选逻辑：挑选最适合金融推理与工具调用的大规模语言模型
+            const targetKeywords = ['llama-3.3', 'llama-3.1', 'nemotron', 'qwen2.5', 'mixtral', 'deepseek'];
+
+            // 2. 彻底排除视觉、音频、专门微调以及参数体量过小的边缘模型
+            const excludeKeywords = ['vision', 'embed', 'audio', 'qa', 'math', 'guard', 'reward', 'tts', 'sdxl', 'steerlm', 'fuyu', '8b', '4b', 'hindi', 'code'];
+
+            let filteredModels = result.data.filter(m => {
+                const id = m.id.toLowerCase();
+                if (excludeKeywords.some(ex => id.includes(ex))) return false;
+                return targetKeywords.some(kw => id.includes(kw));
+            });
+
+            // 3. 算力动态打排位赛排序：按模型参数体积和官方认证深度加权排序
+            filteredModels.sort((a, b) => {
+                const getScore = (id) => {
+                    let s = 0;
+
+                    // a) 提取参数量（核心权重：算力即正义），例如 70B 会加 7000 分，405b 加 40500 分
+                    const paramMatch = id.match(/(\d+(?:\.\d+)?)b/i);
+                    if (paramMatch && paramMatch[1]) {
+                        s += parseFloat(paramMatch[1]) * 100;
+                    }
+
+                    // b) "模型家族" 的优先度（辅助权重，确保同等参数下最强王者靠前）
+                    if (id.includes('llama-3.3')) s += 500; // 最新的 Llama 家族有光环加成
+                    if (id.includes('llama-3.1')) s += 400;
+                    if (id.includes('nemotron')) s += 300;  // NVIDIA 定制护城河
+                    if (id.includes('qwen2.5')) s += 200;
+                    if (id.includes('mixtral')) s += 100;
+
+                    // c) "推理能力" 的微调优先（指示这是一只聪明听话的猴子）
+                    if (id.includes('instruct') || id.includes('chat')) s += 50;
+                    return s;
+                };
+                const scoreA = getScore(a.id.toLowerCase());
+                const scoreB = getScore(b.id.toLowerCase());
+
+                if (scoreB !== scoreA) return scoreB - scoreA;
+                return b.created - a.created; // 同等权重下越新的越靠前
+            });
+
+            // 以防万一，保留备用降频策略
+            if (filteredModels.length < 3) {
+                filteredModels = result.data.filter(m => !excludeKeywords.some(ex => m.id.toLowerCase().includes(ex)));
+            }
+
+            const models = filteredModels.slice(0, 15); // 精心挑选能力最顶尖的 15 款模型展示
+            if (models.length === 0) {
+                container.innerHTML = '<div class="col-12 py-3 text-muted">API Key有效但未找到可用模型</div>';
+            } else {
+                container.innerHTML = models.map(m => `
+                    <div class="col-md-4 col-sm-6 mb-3">
+                        <div class="card border border-success h-100 shadow-sm">
+                            <div class="card-body p-3">
+                                <h6 class="fw-bold text-success mb-1" style="font-size: 0.9rem;">${m.id}</h6>
+                                <p class="small text-muted mb-3" style="font-size: 0.75rem;">所属方: ${m.owned_by}</p>
+                                <button class="btn btn-sm btn-success w-100 add-nvidia-model-btn" data-nvidia-model-id="${m.id}">一键添加到系统</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } else {
+            throw new Error(result.message || '获取模型列表失败');
+        }
+    } catch (e) {
+        showNotification('获取失败', e.message, 'danger');
+    } finally {
+        document.getElementById('nvidia-search-spinner').classList.add('d-none');
+        document.getElementById('fetch-nvidia-models-btn').disabled = false;
+    }
+}
+
+async function addNvidiaModel(modelId) {
+    const apiKey = document.getElementById('nvidia-api-key').value.trim();
+    if (!apiKey) return showNotification('错误', '找不到 API Key', 'danger');
+
+    const data = {
+        name: `NIM - ${modelId.split('/').pop()}`,
+        provider: 'openai',
+        apiKey: apiKey,
+        baseUrl: 'https://integrate.api.nvidia.com/v1',
+        model: modelId,
+        maxTokens: 4000,
+        temperature: 0.2,
+        active: true
+    };
+
+    try {
+        const result = await apiFetch('/api/models', { method: 'POST', body: JSON.stringify(data) });
+        if (result) {
+            loadModels();
+            showNotification('成功', 'NVIDIA NIM 模型已成功添加并激活！', 'success');
+        }
+    } catch (e) {
+        showNotification('添加失败', e.message, 'danger');
+    }
 }

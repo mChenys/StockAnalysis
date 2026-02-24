@@ -1,0 +1,74 @@
+
+> ai-stock-analysis-system@1.0.0 dev
+> nodemon src/app.js --watch src --ext js,json
+
+[33m[nodemon] 3.1.11[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): src/**/*[39m
+[33m[nodemon] watching extensions: js,json[39m
+[32m[nodemon] starting `node src/app.js`[39m
+(node:8656) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8656) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+[33mwarn[39m: MongoDB not found, switching to In-Memory mode. {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:05.902Z"}
+[32minfo[39m: ✅ System synchronized 1 AI nodes. {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:05.998Z"}
+[32minfo[39m: 🚀 Advanced Task Scheduler starting... {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:05.998Z"}
+[32minfo[39m: ✅ Task 'pre-market-analysis' scheduled: 0 21 * * 1-5 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:06.013Z"}
+[32minfo[39m: ✅ Task 'intraday-monitoring' scheduled: */30 23-23,0-4 * * 1-5 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:06.013Z"}
+[32minfo[39m: ✅ Task 'post-market-analysis' scheduled: 30 5 * * 2-6 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:06.014Z"}
+[32minfo[39m: ✅ Task 'daily-summary' scheduled: 0 6 * * 2-6 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:06.014Z"}
+[32minfo[39m: ✅ Task 'weekly-summary' scheduled: 0 10 * * 6 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:06.014Z"}
+[32minfo[39m: ✅ Task 'earnings-calendar' scheduled: 0 8 * * * {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:06.014Z"}
+[32minfo[39m: ✅ Task 'news-monitoring' scheduled: */15 * * * * {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:06.015Z"}
+[32minfo[39m: ✅ Task 'market-anomaly-check' scheduled: */10 * * * * {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:06.015Z"}
+[32minfo[39m: ✅ Task 'cache-cleanup' scheduled: 0 2 * * * {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:06.015Z"}
+[32minfo[39m: ✅ Task 'health-check' scheduled: */5 * * * * {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:06.015Z"}
+[32minfo[39m: ✅ Task scheduler started successfully {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:06.015Z"}
+[32minfo[39m: 🚀 System started on port 3000 (Mode: In-Memory) {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:06.028Z"}
+[32minfo[39m: Starting Restoration 9-D analysis for NVDA {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.179Z"}
+[32minfo[39m: [Crawler] Got price for NVDA via yfinance {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.733Z"}
+[32minfo[39m: [ModelManager] Config info: name=NIM - llama-3.1-nemotron-70b-instruct, baseUrl=https://integrate.api.nvidia.com/v1, model=nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.916Z"}
+[32minfo[39m: [ModelManager] Calling AI endpoint: https://integrate.api.nvidia.com/v1/chat/completions for model: nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.917Z"}
+[32minfo[39m: [ModelManager] Config info: name=NIM - llama-3.1-nemotron-70b-instruct, baseUrl=https://integrate.api.nvidia.com/v1, model=nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.917Z"}
+[32minfo[39m: [ModelManager] Calling AI endpoint: https://integrate.api.nvidia.com/v1/chat/completions for model: nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.918Z"}
+[32minfo[39m: [ModelManager] Config info: name=NIM - llama-3.1-nemotron-70b-instruct, baseUrl=https://integrate.api.nvidia.com/v1, model=nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.918Z"}
+[32minfo[39m: [ModelManager] Calling AI endpoint: https://integrate.api.nvidia.com/v1/chat/completions for model: nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.918Z"}
+[32minfo[39m: [ModelManager] Config info: name=NIM - llama-3.1-nemotron-70b-instruct, baseUrl=https://integrate.api.nvidia.com/v1, model=nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.919Z"}
+[32minfo[39m: [ModelManager] Calling AI endpoint: https://integrate.api.nvidia.com/v1/chat/completions for model: nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.919Z"}
+[32minfo[39m: [ModelManager] Config info: name=NIM - llama-3.1-nemotron-70b-instruct, baseUrl=https://integrate.api.nvidia.com/v1, model=nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.919Z"}
+[32minfo[39m: [ModelManager] Calling AI endpoint: https://integrate.api.nvidia.com/v1/chat/completions for model: nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.919Z"}
+[32minfo[39m: [ModelManager] Config info: name=NIM - llama-3.1-nemotron-70b-instruct, baseUrl=https://integrate.api.nvidia.com/v1, model=nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.920Z"}
+[32minfo[39m: [ModelManager] Calling AI endpoint: https://integrate.api.nvidia.com/v1/chat/completions for model: nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.920Z"}
+[32minfo[39m: [ModelManager] Config info: name=NIM - llama-3.1-nemotron-70b-instruct, baseUrl=https://integrate.api.nvidia.com/v1, model=nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.920Z"}
+[32minfo[39m: [ModelManager] Calling AI endpoint: https://integrate.api.nvidia.com/v1/chat/completions for model: nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.920Z"}
+[32minfo[39m: [ModelManager] Config info: name=NIM - llama-3.1-nemotron-70b-instruct, baseUrl=https://integrate.api.nvidia.com/v1, model=nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.921Z"}
+[32minfo[39m: [ModelManager] Calling AI endpoint: https://integrate.api.nvidia.com/v1/chat/completions for model: nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.921Z"}
+[32minfo[39m: [ModelManager] Config info: name=NIM - llama-3.1-nemotron-70b-instruct, baseUrl=https://integrate.api.nvidia.com/v1, model=nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.922Z"}
+[32minfo[39m: [ModelManager] Calling AI endpoint: https://integrate.api.nvidia.com/v1/chat/completions for model: nvidia/llama-3.1-nemotron-70b-instruct {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:20.922Z"}
+[31merror[39m: AI Engine Error: {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.256Z"}
+[AIAnalyzer] Task shortTerm failed for NVDA: Request failed with status code 404
+[31merror[39m: [AIAnalyzer] Task shortTerm failed for NVDA: Request failed with status code 404 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.256Z"}
+[31merror[39m: AI Engine Error: {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.257Z"}
+[AIAnalyzer] Task fundamental failed for NVDA: Request failed with status code 404
+[31merror[39m: [AIAnalyzer] Task fundamental failed for NVDA: Request failed with status code 404 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.258Z"}
+[31merror[39m: AI Engine Error: {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.258Z"}
+[AIAnalyzer] Task competition failed for NVDA: Request failed with status code 404
+[31merror[39m: [AIAnalyzer] Task competition failed for NVDA: Request failed with status code 404 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.258Z"}
+[31merror[39m: AI Engine Error: {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.259Z"}
+[AIAnalyzer] Task macro failed for NVDA: Request failed with status code 404
+[31merror[39m: [AIAnalyzer] Task macro failed for NVDA: Request failed with status code 404 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.259Z"}
+[31merror[39m: AI Engine Error: {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.274Z"}
+[AIAnalyzer] Task risk failed for NVDA: Request failed with status code 404
+[31merror[39m: [AIAnalyzer] Task risk failed for NVDA: Request failed with status code 404 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.274Z"}
+[31merror[39m: AI Engine Error: {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.275Z"}
+[AIAnalyzer] Task technical failed for NVDA: Request failed with status code 404
+[31merror[39m: [AIAnalyzer] Task technical failed for NVDA: Request failed with status code 404 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.275Z"}
+[31merror[39m: AI Engine Error: {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.276Z"}
+[AIAnalyzer] Task sentiment failed for NVDA: Request failed with status code 404
+[31merror[39m: [AIAnalyzer] Task sentiment failed for NVDA: Request failed with status code 404 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.276Z"}
+[31merror[39m: AI Engine Error: {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.288Z"}
+[AIAnalyzer] Task longTerm failed for NVDA: Request failed with status code 404
+[31merror[39m: [AIAnalyzer] Task longTerm failed for NVDA: Request failed with status code 404 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.288Z"}
+[31merror[39m: AI Engine Error: {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.289Z"}
+[AIAnalyzer] Task advice failed for NVDA: Request failed with status code 404
+[31merror[39m: [AIAnalyzer] Task advice failed for NVDA: Request failed with status code 404 {"service":"stock-analysis-ai","timestamp":"2026-02-24T17:06:21.289Z"}

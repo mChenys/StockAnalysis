@@ -93,6 +93,24 @@ router.delete('/models/:name', authenticateToken, authorize('admin'), async (req
     }
 });
 
+router.post('/nvidia-models', authenticateToken, authorize('admin'), async (req, res) => {
+    try {
+        const { apiKey } = req.body;
+        if (!apiKey) return res.status(400).json({ message: 'API Key is required' });
+
+        const axios = require('axios');
+        const response = await axios.get('https://integrate.api.nvidia.com/v1/models', {
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+            timeout: 15000
+        });
+
+        res.json(response.data);
+    } catch (error) {
+        logger.error('Fetch NVIDIA models error:', error.message);
+        res.status(500).json({ message: 'Failed to fetch models from NVIDIA NIM' });
+    }
+});
+
 // ==== 核心分析API ====
 router.post('/analysis', authenticateToken, async (req, res) => {
     try {

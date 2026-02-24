@@ -65,7 +65,9 @@ class AIStockAnalyzer {
                     const content = await this.performAIAnalysis(symbol, type, data, options.modelName);
                     return { type, content: content.trim() };
                 } catch (err) {
-                    return { type, content: `[维度受限]` };
+                    console.error(`[AIAnalyzer] Task ${type} failed for ${symbol}: ${err.message}`);
+                    logger.error(`[AIAnalyzer] Task ${type} failed for ${symbol}: ${err.message}`);
+                    return { type, content: `[APP DEBUG FALLBACK]` };
                 }
             });
 
