@@ -319,8 +319,15 @@ async function loadTrendRadarInterface() {
     try {
         const models = await apiFetch('/api/models');
         const activeModels = models.filter(m => m.active);
-        if (activeModels.length === 0) { modelSelect.innerHTML = '<option value="">暂无节点</option>'; return; }
-        modelSelect.innerHTML = activeModels.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+        if (activeModels.length === 0) {
+            modelSelect.innerHTML = '<option value="">暂无活跃模型</option>';
+            return;
+        }
+
+        // 添加“全部”选项作为默认，利用多模型并行加速
+        let html = '<option value="ALL" selected>🚀 全部活跃模型 (并行加速)</option>';
+        html += activeModels.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+        modelSelect.innerHTML = html;
     } catch (error) { }
 }
 

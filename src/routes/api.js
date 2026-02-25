@@ -128,14 +128,29 @@ router.post('/analysis', authenticateToken, async (req, res) => {
 // ==== 全网热点雷达API ====
 router.post('/trendradar/refresh', authenticateToken, async (req, res) => {
     try {
-        const { modelName } = req.body;
-        const modelConfig = modelManager.getModelConfig(modelName);
+        let { modelName } = req.body;
 
+        // 获取所有活跃模型
+        const allModels = modelManager.getModels().filter(m => m.active);
+        if (allModels.length === 0) {
+            return res.status(400).json({ success: false, message: '没有活跃的 AI 模型节点' });
+        }
+
+        // 处理 "ALL" 逻辑
+        let primaryModel;
+        if (modelName === 'ALL') {
+            primaryModel = allModels[0]; // 默认取第一个作为主汇总模型
+            modelName = primaryModel.name;
+        } else {
+            primaryModel = allModels.find(m => m.name === modelName);
+        }
+
+        const modelConfig = modelManager.getModelConfig(modelName);
         if (!modelConfig) {
             return res.status(400).json({ success: false, message: 'Invalid model name' });
         }
 
-        // 立即返回，通知前端任务已启动，避免进程太长导致 HTTP 408 超时
+        // 立即返回，通知前端任务已启动
         res.json({ success: true, message: 'TrendRadar background task started' });
 
         const { spawn } = require('child_process');
@@ -144,10 +159,16 @@ router.post('/trendradar/refresh', authenticateToken, async (req, res) => {
 
         const cwd = path.resolve(__dirname, '../../python_service/TrendRadar');
 
+        // 构建模型池
+        const modelsPool = allModels.map(m => modelManager.getModelConfig(m.name));
+
         const env = {
             ...process.env,
             AI_MODEL: modelConfig.model,
             AI_API_KEY: modelConfig.apiKey,
+            AI_MODELS_POOL: JSON.stringify(modelsPool),
+            PARALLEL_AI: 'true',
+            TRENDRADAR_NO_BROWSER: 'true'
         };
         if (modelConfig.baseUrl) {
             env.AI_API_BASE = modelConfig.baseUrl;
@@ -159,9 +180,10 @@ router.post('/trendradar/refresh', authenticateToken, async (req, res) => {
             pythonCmd = venvPythonPath;
         }
 
-        logger.info(`[TrendRadar] Background refresh triggered with model: ${modelConfig.model}`);
+        logger.info(`[TrendRadar] Background refresh triggered with model: ${modelConfig.model} (Parallel Mode: ALL Active)`);
 
         const child = spawn(pythonCmd, ['-m', 'trendradar'], { cwd, env });
+
 
         child.stdout.on('data', (data) => {
             const out = data.toString();
