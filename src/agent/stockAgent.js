@@ -11,6 +11,7 @@ const stockCrawler = require('../crawler/stockDataCrawler');
 const newsCrawler = require('../crawler/newsCrawler');
 const pythonClient = require('../services/pythonClient');
 const logger = require('../utils/logger');
+const AgentSession = require('../database/models/AgentSession');
 
 class StockAgent {
     constructor() {
@@ -48,9 +49,9 @@ class StockAgent {
             }
         };
 
-        // In-memory conversation store (keyed by sessionId)
+        // Persistent conversation store settings (DB & fallback Map)
         this.conversations = new Map();
-        this.maxHistoryLength = 20; // Keep last 20 turns per session
+        this.maxHistoryLength = 20; // Keep last 20 turns (40 messages) per session
     }
 
     /**
@@ -112,15 +113,12 @@ TOOL_CALL_END
      * @param {string} modelName - Name of the AI model to use
      * @returns {Object} { response, toolsUsed, dataCollected }
      */
-    async chat(sessionId, userMessage, modelName) {
+    async chat(userId, sessionId, userMessage, modelName) {
         const startTime = Date.now();
         logger.info(`[Agent] Session ${sessionId}: "${userMessage.substring(0, 50)}..."`);
 
-        // Initialize or retrieve conversation history
-        if (!this.conversations.has(sessionId)) {
-            this.conversations.set(sessionId, []);
-        }
-        const history = this.conversations.get(sessionId);
+        // Retrieve conversation history
+        const history = await this.getHistory(sessionId);
         history.push({ role: 'user', content: userMessage });
 
         let response;
@@ -154,9 +152,7 @@ TOOL_CALL_END
 
                     history.push({ role: 'assistant', content: cleanResp });
 
-                    if (history.length > this.maxHistoryLength * 2) {
-                        this.conversations.set(sessionId, history.slice(-this.maxHistoryLength * 2));
-                    }
+                    await this.saveHistory(userId, sessionId, history);
 
                     const elapsed = Date.now() - startTime;
                     logger.info(`[Agent] Agno Agent response in ${elapsed}ms`);
@@ -219,9 +215,7 @@ TOOL_CALL_END
         const cleanResp = this.cleanResponse(llmResponse);
         history.push({ role: 'assistant', content: cleanResp });
 
-        if (history.length > this.maxHistoryLength * 2) {
-            this.conversations.set(sessionId, history.slice(-this.maxHistoryLength * 2));
-        }
+        await this.saveHistory(userId, sessionId, history);
 
         const elapsed = Date.now() - startTime;
         logger.info(`[Agent] Response generated in ${elapsed}ms, tools used: ${toolsUsed.join(', ') || 'none'}`);
@@ -238,14 +232,11 @@ TOOL_CALL_END
     /**
      * Stream version of chat - returns an async generator for SSE streaming
      */
-    async *chatStream(sessionId, userMessage, modelName) {
+    async *chatStream(userId, sessionId, userMessage, modelName) {
         // Yield status updates as the agent works
         yield { type: 'status', content: '🔍 正在分析您的意图...' };
 
-        if (!this.conversations.has(sessionId)) {
-            this.conversations.set(sessionId, []);
-        }
-        const history = this.conversations.get(sessionId);
+        const history = await this.getHistory(sessionId);
         history.push({ role: 'user', content: userMessage });
 
         const systemPrompt = this.buildSystemPrompt();
@@ -294,9 +285,7 @@ TOOL_CALL_END
         const cleanResponse = this.cleanResponse(llmResponse);
         history.push({ role: 'assistant', content: cleanResponse });
 
-        if (history.length > this.maxHistoryLength * 2) {
-            this.conversations.set(sessionId, history.slice(-this.maxHistoryLength * 2));
-        }
+        await this.saveHistory(userId, sessionId, history);
 
         yield { type: 'response', content: cleanResponse, toolsUsed, dataCollected };
     }
@@ -649,40 +638,79 @@ TOOL_CALL_END
     /**
      * Clear conversation history for a session
      */
-    clearSession(sessionId) {
-        this.conversations.delete(sessionId);
+    async clearSession(sessionId) {
+        if (global.isInMemory) {
+            this.conversations.delete(sessionId);
+            return;
+        }
+        await AgentSession.deleteOne({ sessionId });
     }
 
     /**
      * Get conversation history for a session
      */
-    getHistory(sessionId) {
-        return this.conversations.get(sessionId) || [];
+    async getHistory(sessionId) {
+        if (global.isInMemory) {
+            return this.conversations.get(sessionId) || [];
+        }
+        const session = await AgentSession.findOne({ sessionId }).lean();
+        if (!session || !session.messages) return [];
+        return session.messages.map(m => ({ role: m.role, content: m.content }));
+    }
+
+    /**
+     * Save conversation history to the database
+     */
+    async saveHistory(userId, sessionId, messages) {
+        // Take the last maxHistoryLength * 2 messages to prevent document size growing too large
+        const recentMessages = messages.slice(-this.maxHistoryLength * 2);
+
+        if (global.isInMemory) {
+            this.conversations.set(sessionId, recentMessages);
+            return;
+        }
+
+        let session = await AgentSession.findOne({ sessionId });
+        if (!session) {
+            let title = '新对话';
+            const firstUserMsg = messages.find(m => m.role === 'user');
+            if (firstUserMsg) {
+                title = firstUserMsg.content.length > 25 ? firstUserMsg.content.substring(0, 25) + '...' : firstUserMsg.content;
+            }
+            session = new AgentSession({
+                sessionId,
+                userId,
+                title,
+                messages: []
+            });
+        }
+
+        session.messages = recentMessages;
+        await session.save();
     }
 
     /**
      * Get all active sessions with a brief summary
      */
-    getAllSessions() {
-        const summaries = [];
-        for (const [id, messages] of this.conversations.entries()) {
-            if (messages.length === 0) continue;
-
-            // Generate a title from the first user message
-            const firstUserMsg = messages.find(m => m.role === 'user');
-            const title = firstUserMsg
-                ? (firstUserMsg.content.length > 25 ? firstUserMsg.content.substring(0, 25) + '...' : firstUserMsg.content)
-                : '新对话';
-
-            summaries.push({
-                id,
-                title,
-                messageCount: messages.length,
-                updatedAt: Date.now() // For simplicity, though we could track actual message times
-            });
+    async getAllSessions(userId) {
+        if (global.isInMemory) {
+            const summaries = [];
+            for (const [id, messages] of this.conversations.entries()) {
+                if (messages.length === 0) continue;
+                const firstUserMsg = messages.find(m => m.role === 'user');
+                const title = firstUserMsg ? (firstUserMsg.content.length > 25 ? firstUserMsg.content.substring(0, 25) + '...' : firstUserMsg.content) : '新对话';
+                summaries.push({ id, title, messageCount: messages.length, updatedAt: Date.now() });
+            }
+            return summaries.sort((a, b) => b.updatedAt - a.updatedAt);
         }
-        // Sort by 'updatedAt' descending (mocking recency)
-        return summaries.sort((a, b) => b.updatedAt - a.updatedAt);
+
+        const sessions = await AgentSession.find({ userId }).sort({ updatedAt: -1 }).lean();
+        return sessions.map(s => ({
+            id: s.sessionId,
+            title: s.title,
+            messageCount: s.messages ? s.messages.length : 0,
+            updatedAt: s.updatedAt ? s.updatedAt.getTime() : Date.now()
+        }));
     }
 
     /**

@@ -31,7 +31,7 @@ router.post('/chat', authenticateToken, async (req, res) => {
         // Use user's ID + provided sessionId or generate one
         const sid = sessionId || `${req.user._id}_${Date.now()}`;
 
-        const result = await stockAgent.chat(sid, message.trim(), modelName);
+        const result = await stockAgent.chat(req.user._id, sid, message.trim(), modelName);
 
         res.json({
             success: true,
@@ -93,12 +93,10 @@ router.post('/chat/stream', authenticateToken, async (req, res) => {
                     logger.info(`[Agent Stream] Using Agno Agent stream with model ${modelConfig.model}`);
 
                     // Get conversation history
-                    const history = stockAgent.getHistory(sid);
+                    const history = await stockAgent.getHistory(sid);
 
                     // Store user message in history
-                    if (!stockAgent.conversations) stockAgent.conversations = new Map();
-                    if (!stockAgent.conversations.has(sid)) stockAgent.conversations.set(sid, []);
-                    stockAgent.conversations.get(sid).push({ role: 'user', content: message.trim() });
+                    history.push({ role: 'user', content: message.trim() });
 
                     const pythonStream = await pythonClient.runAgentChatStream(
                         message.trim(),
@@ -149,7 +147,8 @@ router.post('/chat/stream', authenticateToken, async (req, res) => {
 
                     // Save complete response to conversation history
                     if (fullContent) {
-                        stockAgent.conversations.get(sid)?.push({ role: 'assistant', content: fullContent });
+                        history.push({ role: 'assistant', content: fullContent });
+                        await stockAgent.saveHistory(req.user._id, sid, history);
                     }
 
                     res.end();
@@ -163,7 +162,7 @@ router.post('/chat/stream', authenticateToken, async (req, res) => {
         }
 
         // ─── Strategy 2: Manual tool-calling stream (fallback) ───────
-        for await (const event of stockAgent.chatStream(sid, message.trim(), modelName)) {
+        for await (const event of stockAgent.chatStream(req.user._id, sid, message.trim(), modelName)) {
             res.write(`data: ${JSON.stringify(event)}\n\n`);
         }
 
@@ -185,14 +184,16 @@ router.post('/chat/stream', authenticateToken, async (req, res) => {
  * 
  * Get all active sessions for the current user.
  */
-router.get('/sessions', authenticateToken, (req, res) => {
-    // Note: In this simple memory store, we return all sessions. 
-    // In a prod app, we would filter by user ID.
-    const sessions = stockAgent.getAllSessions();
-    res.json({
-        success: true,
-        sessions
-    });
+router.get('/sessions', authenticateToken, async (req, res) => {
+    try {
+        const sessions = await stockAgent.getAllSessions(req.user._id);
+        res.json({
+            success: true,
+            sessions
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 });
 
 /**
@@ -200,13 +201,17 @@ router.get('/sessions', authenticateToken, (req, res) => {
  * 
  * Retrieve conversation history for a session.
  */
-router.get('/history/:sessionId', authenticateToken, (req, res) => {
-    const history = stockAgent.getHistory(req.params.sessionId);
-    res.json({
-        success: true,
-        sessionId: req.params.sessionId,
-        messages: history
-    });
+router.get('/history/:sessionId', authenticateToken, async (req, res) => {
+    try {
+        const history = await stockAgent.getHistory(req.params.sessionId);
+        res.json({
+            success: true,
+            sessionId: req.params.sessionId,
+            messages: history
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 });
 
 /**
@@ -214,12 +219,16 @@ router.get('/history/:sessionId', authenticateToken, (req, res) => {
  * 
  * Clear conversation history for a session.
  */
-router.delete('/history/:sessionId', authenticateToken, (req, res) => {
-    stockAgent.clearSession(req.params.sessionId);
-    res.json({
-        success: true,
-        message: '对话历史已清除'
-    });
+router.delete('/history/:sessionId', authenticateToken, async (req, res) => {
+    try {
+        await stockAgent.clearSession(req.params.sessionId);
+        res.json({
+            success: true,
+            message: '对话历史已清除'
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 });
 
 /**

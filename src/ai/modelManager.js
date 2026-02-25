@@ -32,16 +32,45 @@ class AIModelManager {
                 });
             }
 
-            // Always ensure NVIDIA NIM model is present
-            this.models.set('NIM - llama-3.1-nemotron-70b-instruct', {
-                name: 'NIM - llama-3.1-nemotron-70b-instruct',
-                provider: 'openai',
-                apiKey: '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',
-                baseUrl: 'https://integrate.api.nvidia.com/v1',
-                model: 'meta/llama-3.1-70b-instruct',
-                maxTokens: 4096,
-                temperature: 0.7,
-                active: true
+            // Define a list of default powerful NIM models to ensure they are available
+            const defaultNimModels = [
+                {
+                    name: 'NIM - llama-3.1-nemotron-70b-instruct',
+                    model: 'meta/llama-3.1-70b-instruct'
+                },
+                {
+                    name: 'NIM - meta/llama-3.1-405b-instruct',
+                    model: 'meta/llama-3.1-405b-instruct'
+                },
+                {
+                    name: 'NIM - meta/llama-3.3-70b-instruct',
+                    model: 'meta/llama-3.3-70b-instruct'
+                },
+                {
+                    name: 'NIM - nvidia/nemotron-4-340b-instruct',
+                    model: 'nvidia/nemotron-4-340b-instruct'
+                },
+                {
+                    name: 'NIM - deepseek-r1-distill-qwen-32b',
+                    model: 'deepseek-ai/deepseek-r1-distill-qwen-32b'
+                }
+            ];
+
+            const nimApiKey = process.env.NVIDIA_NIM_API_KEY || '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';
+
+            defaultNimModels.forEach(nimModel => {
+                if (!this.models.has(nimModel.name)) {
+                    this.models.set(nimModel.name, {
+                        name: nimModel.name,
+                        provider: 'openai',
+                        apiKey: nimApiKey,
+                        baseUrl: 'https://integrate.api.nvidia.com/v1',
+                        model: nimModel.model,
+                        maxTokens: 4096,
+                        temperature: 0.7,
+                        active: true
+                    });
+                }
             });
 
             logger.info(`✅ System synchronized ${this.models.size} AI nodes.`);

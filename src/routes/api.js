@@ -125,6 +125,72 @@ router.post('/analysis', authenticateToken, async (req, res) => {
     }
 });
 
+// ==== 全网热点雷达API ====
+router.post('/trendradar/refresh', authenticateToken, async (req, res) => {
+    try {
+        const { modelName } = req.body;
+        const modelConfig = modelManager.getModelConfig(modelName);
+
+        if (!modelConfig) {
+            return res.status(400).json({ success: false, message: 'Invalid model name' });
+        }
+
+        // 立即返回，通知前端任务已启动，避免进程太长导致 HTTP 408 超时
+        res.json({ success: true, message: 'TrendRadar background task started' });
+
+        const { spawn } = require('child_process');
+        const path = require('path');
+        const fs = require('fs');
+
+        const cwd = path.resolve(__dirname, '../../python_service/TrendRadar');
+
+        const env = {
+            ...process.env,
+            AI_MODEL: modelConfig.model,
+            AI_API_KEY: modelConfig.apiKey,
+        };
+        if (modelConfig.baseUrl) {
+            env.AI_API_BASE = modelConfig.baseUrl;
+        }
+
+        let pythonCmd = 'python';
+        const venvPythonPath = path.resolve(__dirname, '../../python_service/venv/bin/python');
+        if (fs.existsSync(venvPythonPath)) {
+            pythonCmd = venvPythonPath;
+        }
+
+        logger.info(`[TrendRadar] Background refresh triggered with model: ${modelConfig.model}`);
+
+        const child = spawn(pythonCmd, ['-m', 'trendradar'], { cwd, env });
+
+        child.stdout.on('data', (data) => {
+            const out = data.toString();
+            if (out.includes('AI分析完成')) {
+                if (global.io) global.io.emit('trendradar_status', { type: 'progress', message: 'AI 分析已就绪' });
+            }
+        });
+
+        child.stderr.on('data', (data) => {
+            logger.warn(`[TrendRadar Script] ${data}`);
+        });
+
+        child.on('close', (code) => {
+            logger.info(`[TrendRadar] Process finished with code ${code}`);
+            if (global.io) {
+                if (code === 0) {
+                    global.io.emit('trendradar_status', { type: 'completed' });
+                } else {
+                    global.io.emit('trendradar_status', { type: 'error', message: `生成失败 (退出码: ${code})` });
+                }
+            }
+        });
+
+    } catch (error) {
+        logger.error('TrendRadar trigger error:', error.message);
+        if (global.io) global.io.emit('trendradar_status', { type: 'error', message: error.message });
+    }
+});
+
 // ==== 收藏夹管理API ====
 router.get('/favorites', authenticateToken, async (req, res) => {
     try {

@@ -155,6 +155,10 @@ function setupGlobalEventListeners() {
             document.getElementById('favorites-list-view').style.display = 'block';
         }
 
+        if (target.id === 'trendradar-refresh-btn' || target.closest('#trendradar-refresh-btn')) {
+            refreshTrendRadar();
+        }
+
         if (target.id === 'fetch-nvidia-models-btn') fetchNvidiaModels();
         if (target.matches('.add-nvidia-model-btn')) {
             const mId = target.dataset.nvidiaModelId;
@@ -177,7 +181,14 @@ function setupGlobalEventListeners() {
 function showSection(name) {
     const sections = document.querySelectorAll('.section');
     sections.forEach(s => s.style.display = 'none');
-    if (document.getElementById(name)) document.getElementById(name).style.display = 'block';
+    const target = document.getElementById(name);
+    if (target) {
+        if (name === 'trendradar' || name === 'situation') {
+            target.style.display = 'flex';
+        } else {
+            target.style.display = 'block';
+        }
+    }
     const navLinks = document.querySelectorAll('.nav-link');
     navLinks.forEach(l => { l.classList.remove('active'); if (l.dataset.section === name) l.classList.add('active'); });
     const sidebar = document.querySelector('.sidebar');
@@ -186,6 +197,7 @@ function showSection(name) {
     if (name === 'models') loadModels();
     if (name === 'favorites') loadFavorites();
     if (name === 'news') loadNewsFeed();
+    if (name === 'trendradar') loadTrendRadarInterface();
 }
 
 function updateModelOptions(provider) {
@@ -300,6 +312,52 @@ async function loadAnalysisInterface() {
         modelSelect.innerHTML = activeModels.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
     } catch (error) {}
 }
+
+async function loadTrendRadarInterface() {
+    const modelSelect = document.getElementById('trendradar-model-select');
+    if (!modelSelect) return;
+    try {
+        const models = await apiFetch('/api/models');
+        const activeModels = models.filter(m => m.active);
+        if (activeModels.length === 0) { modelSelect.innerHTML = '<option value="">暂无节点</option>'; return; }
+        modelSelect.innerHTML = activeModels.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+    } catch (error) { }
+}
+
+async function refreshTrendRadar() {
+    const modelName = document.getElementById('trendradar-model-select').value;
+    if (!modelName) {
+        showNotification('提示', '请先选择一个可用的模型节点', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('trendradar-refresh-btn');
+    const spinner = document.getElementById('trendradar-spinner');
+
+    btn.disabled = true;
+    spinner.classList.remove('d-none');
+    showNotification('已启动', '正在后台使用选定的 AI 模型重新分析全网热点，完成后将自动刷新页面...', 'info');
+
+    try {
+        const res = await apiFetch('/api/trendradar/refresh', {
+            method: 'POST',
+            body: JSON.stringify({ modelName })
+        });
+
+        if (!res.success) {
+            showNotification('错误', res.message || '触发失败', 'danger');
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+        // 成功触发后，不再在此处等待结果，而是通过 Socket.io 监听 trendradar_status
+    } catch (e) {
+        showNotification('错误', '请求失败: ' + e.message, 'danger');
+        btn.disabled = false;
+        spinner.classList.add('d-none');
+    }
+}
+
+
 async function saveToFavorites() {
     if (!lastAnalysisResult) return;
     const res = await apiFetch('/api/favorites', { method: 'POST', body: JSON.stringify({ symbol: lastAnalysisResult.symbol, title: `${lastAnalysisResult.symbol} 全维研报`, content: lastAnalysisResult.analysis, analysisData: lastAnalysisResult.rawData }) });
@@ -568,3 +626,41 @@ async function addNvidiaModel(modelId) {
         showNotification('添加失败', e.message, 'danger');
     }
 }
+
+// Socket.io 初始化逻辑
+function initializeSocket() {
+    if (typeof io === 'undefined') return;
+    socket = io();
+
+    socket.on('connect', () => {
+        console.log('✅ Connected to WebSocket server');
+    });
+
+    // 监听 TrendRadar 状态更新
+    socket.on('trendradar_status', (data) => {
+        const btn = document.getElementById('trendradar-refresh-btn');
+        const spinner = document.getElementById('trendradar-spinner');
+
+        if (data.type === 'completed') {
+            showNotification('成功', '全网热点 AI 分析报告已更新', 'success');
+            const iframe = document.getElementById('trendradar-frame');
+            if (iframe) iframe.src = iframe.src;
+            if (btn) btn.disabled = false;
+            if (spinner) spinner.classList.add('d-none');
+        } else if (data.type === 'progress') {
+            showNotification('进度', data.message, 'info');
+        } else if (data.type === 'error') {
+            showNotification('失败', data.message, 'danger');
+            if (btn) btn.disabled = false;
+            if (spinner) spinner.classList.add('d-none');
+        }
+    });
+
+    socket.on('analysis_result', (data) => {
+        // 全维研报实时更新逻辑（可选）
+        if (lastAnalysisResult && lastAnalysisResult.symbol === data.symbol) {
+            console.log('Received fresh analysis for', data.symbol);
+        }
+    });
+}
+

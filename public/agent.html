@@ -1036,10 +1036,10 @@
                     }
 
                     historyList.innerHTML = sessions.map(s => `
-                <div class="history-item ${currentSessionId === s.id ? 'active' : ''}" onclick="loadSession('${s.id}')">
-                    <i class="bi bi-chat-left-text" style="font-size: 12px; margin-right: 8px;"></i>
-                    <div class="history-item-title">${escapeHtml(s.title)}</div>
-                    <i class="bi bi-x-lg history-item-delete" onclick="event.stopPropagation(); deleteSession('${s.id}')" title="删除对话"></i>
+                <div class="history-item ${currentSessionId === s.id ? 'active' : ''}" data-id="${s.id}">
+                    <i class="bi bi-chat-left-text" style="font-size: 12px; margin-right: 8px; pointer-events: none;"></i>
+                    <div class="history-item-title" style="pointer-events: none;">${escapeHtml(s.title)}</div>
+                    <i class="bi bi-x-lg history-item-delete" data-id="${s.id}" title="删除对话"></i>
                 </div>
             `).join('');
                 }
@@ -1103,6 +1103,43 @@
 
             newChatBtn.addEventListener('click', startNewChat);
             clearChatBtn.addEventListener('click', clearChat);
+
+            // History List Event Delegation
+            const historyList = document.getElementById('history-list');
+            if (historyList) {
+                historyList.addEventListener('click', (e) => {
+                    const deleteBtn = e.target.closest('.history-item-delete');
+                    if (deleteBtn) {
+                        e.stopPropagation();
+                        deleteSession(deleteBtn.dataset.id);
+                        return;
+                    }
+                    const item = e.target.closest('.history-item');
+                    if (item) {
+                        loadSession(item.dataset.id);
+                    }
+                });
+            }
+
+            // Suggestions List Event Delegation
+            if (suggestionsGrid) {
+                suggestionsGrid.addEventListener('click', (e) => {
+                    const card = e.target.closest('.suggestion-card');
+                    if (card) {
+                        useSuggestion(card.dataset.text);
+                    }
+                });
+            }
+
+            // Reasoning Header Event Delegation
+            if (messagesArea) {
+                messagesArea.addEventListener('click', (e) => {
+                    const reasoningHeader = e.target.closest('.reasoning-header');
+                    if (reasoningHeader) {
+                        reasoningHeader.parentElement.classList.toggle('collapsed');
+                    }
+                });
+            }
         }
 
         // =============== API Helpers ===============
@@ -1142,9 +1179,9 @@
                 const res = await apiFetch('/api/agent/suggestions');
                 if (res.success && res.suggestions) {
                     suggestionsGrid.innerHTML = res.suggestions.map(s =>
-                        `<button class="suggestion-card" onclick="useSuggestion('${s.text.replace(/'/g, "\\'")}')">
-                        <span class="suggestion-icon">${s.icon}</span>
-                        ${s.text}
+                        `<button class="suggestion-card" data-text="${escapeHtml(s.text)}">
+                        <span class="suggestion-icon" style="pointer-events: none;">${s.icon}</span>
+                        <span style="pointer-events: none;">${s.text}</span>
                     </button>`
                     ).join('');
                 }
@@ -1157,9 +1194,9 @@
                     { icon: '💼', text: '评估我的持仓: AAPL 100股均价180' }
                 ];
                 suggestionsGrid.innerHTML = defaults.map(s =>
-                    `<button class="suggestion-card" onclick="useSuggestion('${s.text.replace(/'/g, "\\'")}')">
-                    <span class="suggestion-icon">${s.icon}</span>
-                    ${s.text}
+                    `<button class="suggestion-card" data-text="${escapeHtml(s.text)}">
+                    <span class="suggestion-icon" style="pointer-events: none;">${s.icon}</span>
+                    <span style="pointer-events: none;">${s.text}</span>
                 </button>`
                 ).join('');
             }
@@ -1364,11 +1401,11 @@
             div.className = 'stream-reasoning-container';
             div.style.display = 'none';
             div.innerHTML = `
-            <div class="reasoning-header" onclick="this.parentElement.classList.toggle('collapsed')">
-                <span class="reasoning-icon"><i class="bi bi-lightbulb"></i></span>
-                <span class="reasoning-title">思考过程</span>
-                <span class="reasoning-spinner"><span class="spinner"></span></span>
-                <span class="reasoning-toggle"><i class="bi bi-chevron-down"></i></span>
+            <div class="reasoning-header">
+                <span class="reasoning-icon" style="pointer-events: none;"><i class="bi bi-lightbulb"></i></span>
+                <span class="reasoning-title" style="pointer-events: none;">思考过程</span>
+                <span class="reasoning-spinner" style="pointer-events: none;"><span class="spinner"></span></span>
+                <span class="reasoning-toggle" style="pointer-events: none;"><i class="bi bi-chevron-down"></i></span>
             </div>
             <div class="reasoning-body"></div>
         `;
