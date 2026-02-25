@@ -498,6 +498,21 @@ async def health_check():
     }
 
 
+@app.get("/api/news")
+async def fetch_news(query: str = "财经股票", limit: int = 20):
+    from stock_data import get_market_news
+    try:
+        news = get_market_news(query, limit)
+        return {
+            "success": True,
+            "data": news
+        }
+    except Exception as e:
+        logger.error(f"[AgnoAgent] Fetch news Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 @app.post("/api/agent/chat")
 async def agent_chat(req: AgentRequest):
     """

@@ -8,29 +8,76 @@ const logger = require('../utils/logger');
 
 router.get('/', authenticateToken, async (req, res) => {
     try {
-        const { sourceId, topic, symbol, page = 1, limit = 20 } = req.query;
-        const skip = (page - 1) * limit;
+        const { sourceId, topic, symbol, query, page = 1, limit = 15 } = req.query;
+        let queryStr = query || symbol || topic || "";
 
-        const query = {};
-        if (sourceId) query.sourceId = sourceId;
-        if (topic) query.topics = topic;
-        if (symbol) query.relatedSymbols = symbol;
+        let isAShareOrGeneral = !queryStr || queryStr.includes('A股') || queryStr.includes('财经');
 
-        // 兼容处理：内存模式不支持链式 .sort().skip().limit()
-        const news = await NewsItem.find(query);
-        
-        // 内存模式下手动处理排序和分页（可选，目前直接返回）
-        const sortedNews = Array.isArray(news) ? news.sort((a, b) => b.publishedAt - a.publishedAt) : news;
+        // Try getting from python service
+        const pythonClient = require('../services/pythonClient');
+        const isPythonAvailable = await pythonClient.isPythonServiceAvailable();
 
-        const total = 0; 
+        let newsData = [];
+        if (isPythonAvailable && queryStr !== 'A股') {
+            try {
+                // 如果是具体名字或英文标的，直接传给 Python (Yfinance/DuckDuckGo)
+                const pNews = await pythonClient.getMarketNews(queryStr || "财经 股票", parseInt(limit));
+                newsData = pNews.map(item => ({ ...item, market: '美股' }));
+            } catch (err) {
+                logger.error('Python API news fetch failed:', err.message);
+            }
+        }
+
+        // 获取 A 股 / 中文财联社最新资讯补充 (如果不全是英文 ticker 的话)
+        let clsNews = [];
+        if (isAShareOrGeneral || /[\u4e00-\u9fa5]/.test(queryStr)) {
+            try {
+                // 调用本地系统基于 RSS 的高速中国 A 股及宏观抽取
+                const data = await newsCrawler.fetchSource('cls', newsCrawler.sources.cls);
+                // 简单的关键字过滤（如果有输入）
+                if (queryStr && !isAShareOrGeneral) {
+                    clsNews = data.filter(n => n.title.includes(queryStr) || n.content.includes(queryStr));
+                } else {
+                    clsNews = data.slice(0, 15);
+                }
+                const globalKeywords = ['美国', '特朗普', '拜登', '美联储', '鲍威尔', '纳斯达克', '道琼斯', '标普', '美股', '华尔街', '苹果', '特斯拉', '谷歌', '微软', '亚马逊', '英伟达', 'Meta', '伊朗', '中东', '欧盟', '日元', '日本央行', '美债', '降息', '加息', '海外'];
+                clsNews = clsNews.map(item => {
+                    const text = (item.title + ' ' + (item.content || '')).toLowerCase();
+                    const isGlobal = globalKeywords.some(kw => text.includes(kw.toLowerCase()));
+                    return { ...item, market: isGlobal ? '美股' : 'A股' };
+                });
+            } catch (e) {
+                logger.error('Local CLS fetch failed:', e.message);
+            }
+        }
+
+        // 合并池
+        const combined = [...clsNews, ...newsData];
+        // 去重并且排序
+        const uniqueSet = new Set();
+        const finalNews = [];
+        for (const item of combined) {
+            const iden = item.url || item.title;
+            if (!uniqueSet.has(iden)) {
+                uniqueSet.add(iden);
+                finalNews.push(item);
+            }
+        }
+        finalNews.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+
+        const usList = finalNews.filter(x => x.market === '美股').slice(0, 20);
+        const aList = finalNews.filter(x => x.market === 'A股').slice(0, 20);
+
+        // 输出合并后的独立列表
+        const outputNews = [...aList, ...usList];
 
         res.json({
             success: true,
-            data: sortedNews,
+            data: outputNews,
             pagination: {
                 page: parseInt(page),
                 limit: parseInt(limit),
-                total
+                total: outputNews.length
             }
         });
     } catch (error) {

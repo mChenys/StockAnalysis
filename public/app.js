@@ -41,10 +41,31 @@ function parseMarkdownToHtml(text) {
     }).join('');
 }
 
+window.currentNewsTags = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 'MSTR', 'COIN', 'A股'];
+
+window.renderNewsTags = function () {
+    const container = document.getElementById('news-tags-container');
+    if (!container) return;
+    container.innerHTML = window.currentNewsTags.map(t =>
+        `<span class="badge bg-secondary d-flex align-items-center px-2 py-1" style="font-size:0.85rem;">
+            ${t} <i class="bi bi-x-circle ms-1 remove-tag-btn" style="cursor:pointer;" data-tag="${t}"></i>
+         </span>`
+    ).join('');
+};
+
+window.removeNewsTag = function (tag) {
+    window.currentNewsTags = window.currentNewsTags.filter(t => t !== tag);
+    window.renderNewsTags();
+    renderNewsData();
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     setupGlobalEventListeners();
+    window.renderNewsTags();
     checkAuth();
-    initializeSocket();
+    if (typeof initializeSocket === 'function') {
+        initializeSocket();
+    }
 });
 
 async function checkAuth() {
@@ -93,6 +114,28 @@ function setupGlobalEventListeners() {
         if (target.matches('[data-action="start-scheduler"]')) controlScheduler('start');
         if (target.matches('[data-action="stop-scheduler"]')) controlScheduler('stop');
         
+        const newsCard = target.closest('.news-card-act');
+        if (newsCard) {
+            viewNewsDetail(newsCard.dataset.index);
+        }
+
+        if (target.matches('.remove-tag-btn') || target.closest('.remove-tag-btn')) {
+            const btn = target.closest('.remove-tag-btn') || target;
+            const tag = btn.dataset.tag;
+            if (tag) window.removeNewsTag(tag);
+        }
+
+        if (target.matches('#add-tag-btn') || target.closest('#add-tag-btn')) {
+            const input = document.getElementById('custom-tag-input');
+            const val = input.value.trim().toUpperCase();
+            if (val && !window.currentNewsTags.includes(val)) {
+                window.currentNewsTags.push(val);
+                input.value = '';
+                window.renderNewsTags();
+                fetchNewsIncremental(val);
+            }
+        }
+
         const action = target.dataset.action;
         const id = target.dataset.id;
         const modelAction = target.dataset.modelAction;
@@ -267,18 +310,144 @@ async function deleteModel(name) { if (confirm('确定删除此模型？')) { aw
 async function deleteUser(id) { if (confirm('确定删除用户？')) { await apiFetch(`/api/users/${id}`, { method: 'DELETE' }); } }
 async function deleteFavorite(id) { if (confirm('确定移除收藏？')) { await apiFetch(`/api/favorites/${id}`, { method: 'DELETE' }); loadFavorites(); } }
 function showNotification(t, m, type) { const toast = document.createElement('div'); toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`; toast.style.cssText = 'top: 20px; right: 20px; z-index: 10000; min-width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);'; toast.innerHTML = `<strong>${t}</strong><br>${m}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`; document.body.appendChild(toast); setTimeout(() => toast.remove(), 5000); }
-async function loadNewsFeed() {
+let currentNewsList = [];
+async function loadNewsFeed(query = '') {
     const container = document.getElementById('news-feed-container');
     if (!container) return;
+    const activeQuery = query || window.currentNewsTags.join(',');
     try {
-        const res = await apiFetch('/api/news');
-        if (res.data.length === 0) { container.innerHTML = '<div class="text-center py-5 text-muted">暂无财经快讯</div>'; return; }
-        container.innerHTML = res.data.map(item => `<div class="card mb-3 border-0 shadow-sm"><div class="card-body"><div class="d-flex justify-content-between align-items-start"><h6 class="fw-bold mb-0 text-dark">${item.title}</h6></div><p class="small text-muted mb-2">${item.sourceId} | ${new Date(item.publishedAt).toLocaleString()}</p><p class="text-dark small mb-0">${item.content}</p></div></div>`).join('');
-    } catch (e) {}
+        container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-primary mb-2"></div><br>正在获取最新资讯，请稍候...</div>';
+        const url = activeQuery ? `/api/news?query=${encodeURIComponent(activeQuery)}` : '/api/news';
+        const res = await apiFetch(url);
+        if (!res.data || res.data.length === 0) {
+            currentNewsList = [];
+            renderNewsData();
+            return;
+        }
+        currentNewsList = res.data;
+        renderNewsData();
+    } catch (e) {
+        container.innerHTML = `<div class="text-center py-5 text-danger">加载失败: ${e.message}</div>`;
+    }
+}
+
+async function fetchNewsIncremental(newTag) {
+    showNotification('更新中', `正在追踪 ${newTag} 最新动态...`, 'info');
+    try {
+        const url = `/api/news?query=${encodeURIComponent(newTag)}`;
+        const res = await apiFetch(url);
+        if (res.data && res.data.length > 0) {
+            const uniqueSet = new Set(currentNewsList.map(n => n.url || n.title));
+            const newItems = res.data.filter(n => !uniqueSet.has(n.url || n.title));
+            currentNewsList = [...newItems, ...currentNewsList];
+            currentNewsList.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+            renderNewsData();
+            showNotification('成功', `${newTag} 态势已并入全网雷达`, 'success');
+        } else {
+            showNotification('提示', `无最近 ${newTag} 的相关快讯`, 'warning');
+        }
+    } catch (e) {
+        showNotification('失败', `${newTag} 动态追踪失败`, 'danger');
+    }
+}
+
+function renderNewsData() {
+    const container = document.getElementById('news-feed-container');
+    if (!container) return;
+
+    // 轻量级本地过滤，如果不包含某个移除的 tag，这里简单起见目前只要是在 currentNewsList 里就不处理
+    // 但是未来如果你想要根据当前所拥有的 tags 严格过滤也行，这里维持高速平滑更新
+    const aShareNews = currentNewsList.filter(item => item.market === 'A股');
+    const usShareNews = currentNewsList.filter(item => item.market === '美股');
+
+    const renderCards = (newsList) => newsList.map((item, index) => {
+        const origIndex = currentNewsList.indexOf(item);
+        const tagStr = item.market ? `<span class="badge ${item.market === 'A股' ? 'bg-danger' : 'bg-primary'} ms-2" style="font-size:0.75rem;">${item.market}</span>` : '';
+        return `<div class="card mb-3 border-0 shadow-sm news-card-act" data-index="${origIndex}" style="cursor:pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.01)'" onmouseout="this.style.transform='scale(1)'"><div class="card-body"><div class="d-flex justify-content-between align-items-start"><h6 class="fw-bold mb-0 text-dark">${item.title || '【无标题资讯】'}${tagStr}</h6></div><p class="small text-muted mb-2 mt-2">${item.sourceId} | ${new Date(item.publishedAt).toLocaleString()}</p><p class="text-dark small mb-0">${(item.content || '').substring(0, 150)}...</p></div></div>`;
+    }).join('');
+
+    let html = '';
+    if (aShareNews.length > 0 || usShareNews.length > 0) {
+        html = `
+            <div class="col-md-6 border-end">
+                <h5 class="text-danger mb-3 border-bottom pb-2" style="font-size:1.1rem;font-weight:bold;"><i class="bi bi-graph-up-arrow"></i> A股核心电报</h5>
+                ${aShareNews.length > 0 ? renderCards(aShareNews) : '<p class="text-muted">暂无A股资讯</p>'}
+            </div>
+            <div class="col-md-6">
+                <h5 class="text-primary mb-3 border-bottom pb-2" style="font-size:1.1rem;font-weight:bold;"><i class="bi bi-globe"></i> 美股/国际热点</h5>
+                ${usShareNews.length > 0 ? renderCards(usShareNews) : '<p class="text-muted">暂无美股资讯</p>'}
+            </div>
+        `;
+    } else {
+        html = '<div class="col-12"><div class="text-center py-5 text-muted">暂无符合条件的财经快讯</div></div>';
+    }
+
+    container.innerHTML = html;
+}
+
+function viewNewsDetail(index) {
+    const item = currentNewsList[index];
+    if (!item) return;
+    document.getElementById('newsDetailTitle').textContent = item.title || '【无标题资讯】';
+    document.getElementById('newsDetailSource').textContent = `${item.sourceId} | ${new Date(item.publishedAt).toLocaleString()}`;
+    document.getElementById('newsDetailContent').innerHTML = (item.content || '暂无详细内容').replace(/\n/g, '<br>');
+    document.getElementById('newsDetailUrl').href = item.url || '#';
+    document.getElementById('newsDetailUrl').style.display = item.url ? 'inline-block' : 'none';
+
+    document.getElementById('newsAnalysisResult').style.display = 'none';
+    document.getElementById('newsAnalysisResult').innerHTML = '';
+
+    const btn = document.getElementById('analyzeNewsBtn');
+    btn.onclick = () => analyzeNewsImpact(item);
+
+    try {
+        const modalEl = document.getElementById('newsDetailModal');
+        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
+    } catch (err) {
+        console.error('Modal show err', err);
+    }
+}
+
+async function analyzeNewsImpact(item) {
+    const resContainer = document.getElementById('newsAnalysisResult');
+    resContainer.style.display = 'block';
+    resContainer.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm text-success"></div> <span class="ms-2">正在由AI模型深度剖析该新闻的利多/利空面...</span></div>';
+
+    try {
+        const models = await apiFetch('/api/models');
+        const activeModel = models.find(m => m.active);
+        if (!activeModel) {
+            resContainer.innerHTML = '<div class="alert alert-warning">未找到活跃的模型，请先前往模型管理配置。</div>';
+            return;
+        }
+
+        const question = `你是一位顶级华尔街量化分析师。请针对以下新闻简短解读其对相关市场或具体哪家公司的股价是【利好】、【利空】还是【中性】，并精炼阐述核心判断理由：\n\n【新闻标题】：${item.title}\n【新闻内容】：${item.content}\n\n请直接在首行结论中明确指出受影响的【股票代码或公司名称】，**你必须尽可能提供准确的股票代码 (Ticker)**，例如：“结论：【利好 - 苹果(AAPL)】” 或 “结论：【利空 - 特斯拉(TSLA)】” 或 “结论：【中性 - 整个加密市场】”，并给出2-3条核心理由，支持基本Markdown格式。`;
+
+        const res = await fetch('/api/agent/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ message: question, modelName: activeModel.name })
+        });
+
+        const data = await res.json();
+        if (data.success && data.response) {
+            resContainer.innerHTML = parseMarkdownToHtml(data.response);
+        } else {
+            resContainer.innerHTML = `<div class="text-danger">分析失败: ${data.message || '未知错误'}</div>`;
+        }
+    } catch (e) {
+        resContainer.innerHTML = `<div class="text-danger">请求失败: ${e.message}</div>`;
+    }
 }
 async function ingestNews() {
-    showNotification('同步中', '正在抓取资讯...', 'info');
-    try { const res = await apiFetch('/api/news/ingest', { method: 'POST' }); showNotification('成功', `已录入 ${res.stats.savedCount} 条讯息`, 'success'); loadNewsFeed(); } catch (e) {}
+    showNotification('同步中', '正在从国际数据源提取最新资讯...', 'info');
+    try {
+        await loadNewsFeed();
+        showNotification('成功', '实时资讯流已更新', 'success');
+    } catch (e) {
+        showNotification('失败', e.message, 'danger');
+    }
 }
 async function saveModel() {
     const form = document.getElementById('addModelForm');

@@ -113,10 +113,24 @@ async function getStockPrice(symbol) {
     throw new Error('Failed to get stock price');
 }
 
+/**
+ * Get market news from Python service
+ */
+async function getMarketNews(query = "财经股票", limit = 20) {
+    const res = await axios.get(`${PYTHON_SERVICE_URL}/api/news`, {
+        params: { query, limit },
+        timeout: 30000
+    });
+    if (res.data?.success) return res.data.data;
+    throw new Error('Failed to get market news from python');
+}
+
 module.exports = {
     isPythonServiceAvailable,
     runAgentChat,
     runAgentChatStream,
     getStockPrice,
+    getMarketNews,
     PYTHON_SERVICE_URL,
 };
+

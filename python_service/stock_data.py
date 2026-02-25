@@ -287,3 +287,118 @@ def analyze_portfolio(holdings: List[Dict[str, Any]]) -> Dict[str, Any]:
             "positionCount": len(portfolio_data)
         }
     }
+
+
+# ─── Market News ────────────────────────────────────────────
+
+def get_market_news(query: str = "财经股票", limit: int = 20) -> List[Dict[str, Any]]:
+    """Get market news using duckduckgo-search."""
+    cache_key = f"news_{query}_{limit}"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    try:
+        from duckduckgo_search import DDGS
+        ddgs = DDGS()
+        results = []
+        try:
+            results = ddgs.news(query, max_results=limit)
+        except Exception as e:
+            logger.warning(f"DuckDuckGo search failed, falling back to yfinance: {e}")
+            
+        news_list = []
+        if results:
+            for item in results:
+                # DDGS returns: date, title, body, url, image, source
+                news_list.append({
+                    "title": item.get("title", ""),
+                    "content": item.get("body", ""),
+                    "url": item.get("url", ""),
+                    "sourceId": item.get("source", "网速财经"),
+                    "publishedAt": item.get("date", datetime.now().isoformat())
+                })
+                
+        # Try yfinance as a fallback
+        if not news_list:
+            import yfinance as yf
+            
+            def translate_text(text):
+                if not text:
+                    return text
+                try:
+                    from deep_translator import GoogleTranslator
+                    return GoogleTranslator(source='auto', target='zh-CN').translate(text)
+                except Exception as e:
+                    logger.warning(f"Translation failed: {e}")
+                    return text
+                    
+            # 提取 query 中的有效 ticker，支持以逗号或空格分割
+            import re
+            query_tickers = [w.strip().upper() for w in re.split(r'[, ]+', query) if w.strip() and re.match(r'^[A-Za-z0-9\-\.]+$', w.strip())]
+            tickers = query_tickers if query_tickers else ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "TSLA"]
+            
+            all_yf_news = []
+            for t in tickers:
+                if t in ["A", "A股"]: continue # 进一步防误杀
+                try:
+                    res = yf.Ticker(t).news
+                    if res:
+                        all_yf_news.extend(res)
+                except Exception:
+                    pass
+            
+            # 根据 URL 进行新闻去重
+            seen_urls = set()
+            unique_news = []
+            for item in all_yf_news:
+                content = item.get("content", item)
+                click_though = content.get("clickThroughUrl") or {}
+                canonical = content.get("canonicalUrl") or {}
+                url = click_though.get("url") or canonical.get("url") or ""
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    unique_news.append(item)
+            
+            # 按时间倒序排序，确保最新资讯在前面
+            def get_pub_date(item):
+                content = item.get("content", item)
+                return content.get("pubDate", "")
+            unique_news.sort(key=get_pub_date, reverse=True)
+            
+            for item in unique_news[:limit]:
+                content = item.get("content", item)
+                
+                title = content.get("title", "")
+                summary = content.get("summary", "")
+                
+                # Fetch URL
+                # Fetch URL
+                click_though = content.get("clickThroughUrl") or {}
+                canonical = content.get("canonicalUrl") or {}
+                url = click_though.get("url") or canonical.get("url") or ""
+                
+                # Fetch provider
+                provider = content.get("provider") or {}
+                source = provider.get("displayName") or "Yahoo Finance"
+                
+                # Fetch date
+                pub_date = content.get("pubDate", datetime.now().isoformat())
+                
+                if title:
+                    zh_title = translate_text(title)
+                    zh_summary = translate_text(summary)
+                    news_list.append({
+                        "title": zh_title,
+                        "content": zh_summary,
+                        "url": url,
+                        "sourceId": source,
+                        "publishedAt": pub_date
+                    })
+        
+        _set_cached(cache_key, news_list)
+        return news_list
+    except Exception as e:
+        logger.error(f"Error fetching news: {e}")
+        return []
+
