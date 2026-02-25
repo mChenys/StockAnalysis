@@ -13,7 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import logging
+import asyncio
+import json
+import time
 import uvicorn
+import httpx
+import yfinance as yf
+from fastapi import WebSocket, WebSocketDisconnect, Query, HTTPException
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
@@ -56,6 +62,225 @@ class AgentRequest(BaseModel):
         default=None,
         description="Previous conversation messages [{role, content}]"
     )
+
+# ─── Data Streaming WebSocket (Yfinance) ────────────────────
+
+@app.websocket("/ws/markets")
+async def websocket_markets(websocket: WebSocket):
+    # Explicitly accept with any origin (FastAPI usually handles this via CORSMiddleware,
+    # but we'll be extra safe here for the handshake)
+    await websocket.accept()
+    logger.info("Market WebSocket connection accepted")
+    
+    # Tech Giants, Commodities, Sector ETFs
+    symbols_map = {
+        # Tech Giants (Magnificent Seven)
+        "AAPL": "AAPL", "MSFT": "MSFT", "GOOGL": "GOOGL", "AMZN": "AMZN", 
+        "NVDA": "NVDA", "META": "META", "TSLA": "TSLA",
+        # Commodities
+        "GC=F": "GC=F", "CL=F": "CL=F", "NG=F": "NG=F", "SI=F": "SI=F", "HG=F": "HG=F", "^VIX": "^VIX",
+        # Sector ETFs
+        "XLK": "XLK", "XLF": "XLF", "XLE": "XLE", "XLV": "XLV", "XLY": "XLY", "XLI": "XLI", 
+        "XLP": "XLP", "XLU": "XLU", "XLB": "XLB", "XLRE": "XLRE", "XLC": "XLC", "SMH": "SMH"
+    }
+
+    try:
+        while True:
+            # Check if socket is still open before heavy polling
+            if websocket.client_state.value == 2: # DISCONNECTED
+                break
+                
+            try:
+                # Batch request via Tickers
+                tickers = yf.Tickers(" ".join(symbols_map.keys()))
+                trades = []
+                for sym in symbols_map.keys():
+                    try:
+                        ticker = tickers.tickers[sym]
+                        price = None
+                        # Use fast_info for speed, fallback to info
+                        try:
+                            price = ticker.fast_info.last_price
+                        except:
+                            pass
+                        
+                        if price is None:
+                            # Ticker.info is slower but more reliable for some indices
+                            price = ticker.info.get('currentPrice', ticker.info.get('regularMarketPrice'))
+                        
+                        if price is not None:
+                            trades.append({
+                                "s": sym,
+                                "p": float(price),
+                                "t": int(time.time() * 1000)
+                            })
+                    except Exception:
+                        continue
+                
+                if trades:
+                    # Final check before sending to avoid "Cannot call send once close message has been sent"
+                    if websocket.client_state.value == 1: # CONNECTED
+                        await websocket.send_text(json.dumps({"type": "trade", "data": trades}))
+                
+                await asyncio.sleep(5) # 5s interval is safer for yfinance rate limits
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                logger.error(f"Yfinance polling error: {e}")
+                await asyncio.sleep(5)
+    except Exception as e:
+        logger.info(f"Market WebSocket session ended: {e}")
+    finally:
+        logger.info("Market WebSocket closed")
+
+# Simple in-memory cache for news proxy
+news_cache = {}
+CACHE_EXPIRY = 300  # Increased to 5 minutes to significantly speed up front-end loads
+
+# Common translation dictionary for financial/political news
+TRANSLATIONS = {
+    "stock market": "股票市场", "stocks": "股票", "opens flat": "平开", "banking sector": "银行业",
+    "upside potential": "上涨潜力", "analysts": "分析师", "public sector": "公共部门",
+    "merger": "合并", "interest rates": "利率", "inflation": "通胀", "economy": "经济",
+    "federal reserve": "美联储", "central bank": "中央银行", "technology": "科技",
+    "artificial intelligence": "人工智能", "security": "安全", "military": "军事",
+    "defense": "国防", "protest": "抗议", "uprising": "起义", "nuclear": "核能",
+    "election": "选举", "government": "政府", "summit": "峰会", "climate": "气候",
+    "energy": "能源", "oil": "石油", "gold": "黄金", "recession": "衰退"
+}
+
+# Comprehensive translation and interpretation logic
+INTERPRETATIONS = {
+    "rate hike": "加息：利空股市，现金贬值压力减小",
+    "rate cut": "降息：利好股市，增加市场流动性",
+    "inflation": "通胀：物价上涨，可能引发加息预期",
+    "unemployment": "失业率：可能导致降息预期，利好债市",
+    "employment": "就业数据强劲：利好经济，但可能推升加息预期",
+    "gdp": "GDP：衡量经济增速的核心指标",
+    "earnings": "财报：决定个股走势的最直接因素",
+    "recession": "经济衰退：整体市场下行压力增大",
+    "bull market": "牛市：市场信心足，适合持有",
+    "bear market": "熊市：风险大，建议防守",
+    "merger": "合并：通常利好被收购方，关注股价溢价",
+    "stock market": "股市动态",
+    "all-time high": "历史新高：关注是否面临超买回调风险",
+    "banking": "银行业动态：关注系统性金融风险",
+}
+
+def interpret_news(text):
+    """Explain why this news matters for investors"""
+    text_lower = text.lower()
+    for key, val in INTERPRETATIONS.items():
+        if key in text_lower:
+            return val
+    return None
+
+# Sophisticated financial pattern matching for better Chinese understanding
+PATTERNS = [
+    (r"upside potential of up to (\d+)", r"预期上涨空间高达 \1"),
+    (r"opens flat", r"平开"),
+    (r"stock market today", r"今日股市"),
+    (r"tracking (\w+) exposure", r"追踪 \1 的风险敞口"),
+    (r"No roadmap for now", r"暂无路线图"),
+    (r"clarifies on", r"澄清关于"),
+    (r"(\w+) sector stocks", r"\1 行业股票"),
+    (r"according to analysts", r"据分析师称"),
+    (r"bars foreign nationals", r"禁止外籍人士"),
+    (r"pushes (\d+) %", r"推进 \1 %"),
+]
+
+def translate_news(text):
+    """Refined translation helper for financial headlines"""
+    if not text: return text
+    translated = text
+    import re
+    
+    # 1. Apply regex patterns for phrases
+    for pattern, replacement in PATTERNS:
+        translated = re.sub(pattern, replacement, translated, flags=re.IGNORECASE)
+    
+    # 2. Key term substitution
+    DICT = {
+        **TRANSLATIONS,
+        "nifty50": "印度50指数", "bse sensex": "孟买指数", 
+        "merger": "合并", "boards": "董事会", "banking": "银行",
+        "finance": "金融", "economy": "经济"
+    }
+    for eng, chn in DICT.items():
+        pattern = re.compile(rf'\b{eng}\b', re.IGNORECASE)
+        translated = pattern.sub(chn, translated)
+        
+    return translated
+
+def clean_url(url):
+    """Ensure URL is absolute and properly formatted"""
+    if not url: return ""
+    if url.startswith("//"): return "https:" + url
+    if not url.startswith("http"): return "https://" + url
+    return url
+
+@app.get("/api/proxy")
+async def proxy_request(url: str = Query(..., description="URL to proxy")):
+    """Proxy service to bypass CORS and unreliable public proxies with server-side caching"""
+    current_time = time.time()
+    
+    # Check cache
+    if url in news_cache:
+        cached_data, timestamp = news_cache[url]
+        if current_time - timestamp < CACHE_EXPIRY:
+            logger.info(f"Serving cached response for: {url}")
+            return cached_data
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json, text/plain, xml/rss, */*"
+            }
+            logger.info(f"Proxying request to: {url}")
+            response = await client.get(url, headers=headers)
+            
+            # If rate limited by source, return a structured 429
+            if response.status_code == 429:
+                logger.warn(f"Source Rate Limit Hit (429) for {url}")
+                return {"error": "Rate limit hit at source", "status": 429, "articles": []}
+            
+            if response.status_code != 200:
+                logger.error(f"Proxy source returned {response.status_code} for {url}")
+                # For SSR/XML feeds, return text even if status isn't 200 if we can
+                if response.status_code == 522: # Cloudflare/Proxy error
+                     return {"error": "Source proxy timeout (522)", "status": 522}
+                raise HTTPException(status_code=response.status_code, detail=f"Source returned {response.status_code}")
+                
+            # Try parsing as JSON first
+            try:
+                data = response.json()
+                
+                # GDELT specific translation (only if it's GDELT)
+                if "api.gdeltproject.org" in url and "articles" in data:
+                    for article in data["articles"]:
+                        if "title" in article:
+                            article["translated_title"] = translate_news(article["title"])
+                            article["interpretation"] = interpret_news(article["title"])
+                        if "url" in article:
+                            article["url"] = clean_url(article["url"])
+                
+                news_cache[url] = (data, current_time)
+                return data
+            except:
+                # If not JSON, return as plain text (e.g., RSS XML)
+                content = response.text
+                news_cache[url] = (content, current_time)
+                return content
+
+    except httpx.TimeoutException:
+        logger.error(f"Proxy timeout for {url}")
+        return {"error": "Proxy timeout", "status": 504}
+    except Exception as e:
+        logger.error(f"Proxy error for {url}: {e}")
+        return {"error": str(e), "status": 500}
+
+
 
 
 # ─── Sanitized OpenAIChat ───────────────────────────────────

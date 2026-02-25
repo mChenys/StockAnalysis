@@ -1,0 +1,23 @@
+[33m[nodemon] 3.1.11[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[32m[nodemon] starting `node src/app.js`[39m
+(node:51921) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:51921) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+[33mwarn[39m: MongoDB not found, switching to In-Memory mode. {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.502Z"}
+[32minfo[39m: ✅ System synchronized 1 AI nodes. {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.637Z"}
+[32minfo[39m: 🚀 Advanced Task Scheduler starting... {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.637Z"}
+[32minfo[39m: ✅ Task 'pre-market-analysis' scheduled: 0 21 * * 1-5 {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.652Z"}
+[32minfo[39m: ✅ Task 'intraday-monitoring' scheduled: */30 23-23,0-4 * * 1-5 {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.653Z"}
+[32minfo[39m: ✅ Task 'post-market-analysis' scheduled: 30 5 * * 2-6 {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.653Z"}
+[32minfo[39m: ✅ Task 'daily-summary' scheduled: 0 6 * * 2-6 {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.653Z"}
+[32minfo[39m: ✅ Task 'weekly-summary' scheduled: 0 10 * * 6 {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.653Z"}
+[32minfo[39m: ✅ Task 'earnings-calendar' scheduled: 0 8 * * * {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.654Z"}
+[32minfo[39m: ✅ Task 'news-monitoring' scheduled: */15 * * * * {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.654Z"}
+[32minfo[39m: ✅ Task 'market-anomaly-check' scheduled: */10 * * * * {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.654Z"}
+[32minfo[39m: ✅ Task 'cache-cleanup' scheduled: 0 2 * * * {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.654Z"}
+[32minfo[39m: ✅ Task 'health-check' scheduled: */5 * * * * {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.655Z"}
+[32minfo[39m: ✅ Task scheduler started successfully {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.655Z"}
+[32minfo[39m: 🚀 System started on port 3000 (Mode: In-Memory) {"service":"stock-analysis-ai","timestamp":"2026-02-25T04:16:24.667Z"}

@@ -180,6 +180,20 @@ router.post('/chat/stream', authenticateToken, async (req, res) => {
         }
     }
 });
+/**
+ * GET /api/agent/sessions
+ * 
+ * Get all active sessions for the current user.
+ */
+router.get('/sessions', authenticateToken, (req, res) => {
+    // Note: In this simple memory store, we return all sessions. 
+    // In a prod app, we would filter by user ID.
+    const sessions = stockAgent.getAllSessions();
+    res.json({
+        success: true,
+        sessions
+    });
+});
 
 /**
  * GET /api/agent/history/:sessionId

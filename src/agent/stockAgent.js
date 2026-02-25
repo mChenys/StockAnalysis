@@ -661,6 +661,31 @@ TOOL_CALL_END
     }
 
     /**
+     * Get all active sessions with a brief summary
+     */
+    getAllSessions() {
+        const summaries = [];
+        for (const [id, messages] of this.conversations.entries()) {
+            if (messages.length === 0) continue;
+
+            // Generate a title from the first user message
+            const firstUserMsg = messages.find(m => m.role === 'user');
+            const title = firstUserMsg
+                ? (firstUserMsg.content.length > 25 ? firstUserMsg.content.substring(0, 25) + '...' : firstUserMsg.content)
+                : '新对话';
+
+            summaries.push({
+                id,
+                title,
+                messageCount: messages.length,
+                updatedAt: Date.now() // For simplicity, though we could track actual message times
+            });
+        }
+        // Sort by 'updatedAt' descending (mocking recency)
+        return summaries.sort((a, b) => b.updatedAt - a.updatedAt);
+    }
+
+    /**
      * Get quick suggestion prompts for the UI
      */
     getSuggestions() {

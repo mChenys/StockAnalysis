@@ -29,6 +29,7 @@ echo ""
 echo "🔍 Cleaning up existing services..."
 # 彻底杀掉占用端口的进程及其子进程
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+lsof -ti:3005 | xargs kill -9 2>/dev/null || true
 lsof -ti:8000 | xargs kill -9 2>/dev/null || true
 # 预防性杀掉可能残留的相关进程名
 pkill -9 -f "nodemon" 2>/dev/null || true
@@ -64,6 +65,7 @@ cleanup() {
     echo "🛑 Shutting down all services..."
     kill $PYTHON_PID 2>/dev/null && echo "   ✅ Python service stopped"
     kill $NODE_PID 2>/dev/null && echo "   ✅ Node.js server stopped"
+    kill $MONITOR_PID 2>/dev/null && echo "   ✅ Monitor UI stopped"
     exit 0
 }
 trap cleanup SIGINT SIGTERM
@@ -75,6 +77,10 @@ cd "$ROOT_DIR"
 npm run dev &
 NODE_PID=$!
 
+cd "$ROOT_DIR/python_service/situation-monitor"
+npm run dev -- --host --port 3005 > dev.log 2>&1 &
+MONITOR_PID=$!
+
 sleep 3
 
 echo ""
@@ -85,6 +91,7 @@ echo "   📗 Main App:  http://localhost:3000"
 echo "   🤖 AI Agent:  http://localhost:3000/agent"
 echo "   🐍 Python:    http://localhost:8000"
 echo "   📖 API Docs:  http://localhost:8000/docs"
+echo "   🌍 Monitor:   http://localhost:3005"
 echo ""
 echo "═════════════════════════════════════════════"
 echo "Press Ctrl+C to stop all services."

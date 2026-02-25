@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>股票 AI 智能研判系统</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         :root {
             --primary-color: #4361ee;
@@ -110,9 +110,7 @@
                 <div class="position-sticky pt-4">
                     <h5 class="text-center mb-4 text-primary fw-bold"><i class="bi bi-robot"></i> AI 股票系统</h5>
                     <ul class="nav flex-column" id="main-nav">
-                        <li class="nav-item"><a class="nav-link" href="/agent"
-                                style="background: linear-gradient(135deg, #4361ee, #7c3aed); color: white !important; font-weight: 600;"><i
-                                    class="bi bi-robot"></i> AI Agent 对话</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/agent"><i class="bi bi-robot"></i> AI Agent 对话</a></li>
                         <li class="nav-item"><a class="nav-link active" href="#" data-section="dashboard"><i class="bi bi-speedometer2"></i>
                                 仪表盘</a></li>
                         <li class="nav-item"><a class="nav-link" href="#" data-section="models"><i class="bi bi-cpu"></i> 模型管理</a></li>
@@ -260,21 +258,15 @@
                             </div>
                             
                             <!-- 全网热点雷达模块 -->
-                            <div id="trendradar" class="section" style="display: none; height: 85vh;">
-                                <div class="section-header d-flex justify-content-between align-items-center mb-0 border-bottom pb-2">
-                                    <h2 class="mb-0">全网热点雷达 (TrendRadar)</h2>
-                                </div>
-                                <iframe src="http://localhost:8001" style="width: 100%; height: 100%; border: none; border-radius: 8px;"
+                            <div id="trendradar" class="section" style="display: none; height: 92vh; margin: -1.5rem -1.5rem 0 -1.5rem;">
+                                <iframe src="http://localhost:8001" style="width: 100%; height: 100%; border: none; display: block;"
                                     id="trendradar-frame" title="TrendRadar"></iframe>
                             </div>
-<!-- 全球态势监控模块 -->
-<div id="situation" class="section" style="display: none; height: 85vh;">
-    <div class="section-header d-flex justify-content-between align-items-center mb-0 border-bottom pb-2">
-        <h2 class="mb-0">全球态势监控 (Situation Monitor)</h2>
-                    </div>
-                    <iframe src="http://localhost:3005" style="width: 100%; height: 100%; border: none; border-radius: 8px;"
-                        id="situation-frame" title="Situation Monitor"></iframe>
-                </div>
+                            <!-- 全球态势监控模块 -->
+                            <div id="situation" class="section" style="display: none; height: 92vh; margin: -1.5rem -1.5rem 0 -1.5rem;">
+                                <iframe src="http://localhost:3005" style="width: 100%; height: 100%; border: none; display: block;"
+                                    id="situation-frame" title="Situation Monitor"></iframe>
+                            </div>
 
                 <!-- 模型管理模块 -->
                 <div id="models" class="section" style="display: none;">
