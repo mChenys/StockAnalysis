@@ -3,10 +3,15 @@ const Task = require('../database/models/Task');
 const logger = require('../utils/logger');
 const { spawn } = require('child_process');
 const path = require('path');
+const Favorite = require('../database/models/Favorite');
+const pythonClient = require('./pythonClient');
+const axios = require('axios');
+
 
 class CronManager {
     constructor() {
         this.jobs = new Map(); // Store cron.schedule objects
+        this.lastStates = new Map(); // Store symbol -> { price, volume, timestamp }
     }
 
     async init() {
@@ -72,8 +77,8 @@ class CronManager {
 
             // 下方预留其他类型的扩展示例
             else if (task.type === 'market_monitor') {
-                logger.info('Running market monitor...');
-                // ... 调价格警报逻辑 ...
+                logger.info(`Starting market monitor check for task: ${task.name}`);
+                await this.runMarketMonitor(task);
             }
             else if (task.type === 'weekly_summary') {
                 logger.info('Running weekly summary report...');
@@ -150,6 +155,133 @@ class CronManager {
                     reject(new Error(`Exit code ${code}. Log excerpt: ${out.substring(0, 500)}`));
                 }
             });
+        });
+    }
+
+    async runMarketMonitor(task) {
+        const params = task.parameters || {};
+        const priceThreshold = params.price_change || 2.0;
+        const volumeThreshold = params.volume_ratio || 1.5;
+        const triggerLogic = params.trigger_logic || 'or';
+        const scope = params.scope || 'favorites';
+
+        // 1. 获取监控代码列表
+        let symbols = [];
+        if (scope === 'favorites' || scope === 'both') {
+            const favs = await Favorite.find({ user: task.user });
+            symbols = [...new Set(favs.map(f => f.symbol))];
+        }
+        if (scope === 'sectors' || scope === 'both') {
+            const sectors = ['XLK', 'XLF', 'XLE', 'XLV', 'XLY', 'XLI', 'XLP', 'XLU', 'XLB', 'XLRE', 'XLC', 'SMH', '^VIX', 'GC=F', 'CL=F'];
+            symbols = [...new Set([...symbols, ...sectors])];
+        }
+
+        if (symbols.length === 0) {
+            logger.info('No symbols found to monitor.');
+            return;
+        }
+
+        logger.info(`Monitoring ${symbols.length} symbols for task ${task.name} (Logic: ${triggerLogic.toUpperCase()})`);
+
+        const alerts = [];
+        for (const symbol of symbols) {
+            try {
+                const data = await pythonClient.getStockPrice(symbol);
+                if (!data) continue;
+
+                const currentState = {
+                    price: data.currentPrice,
+                    change: data.changePercent,
+                    session: data.session,
+                    volume: data.volume,
+                    timestamp: Date.now()
+                };
+
+                const prevState = this.lastStates.get(symbol);
+                if (prevState) {
+                    const priceDiff = Math.abs(currentState.price - prevState.price) / prevState.price * 100;
+
+                    const matches = [];
+                    const status = {
+                        price: priceDiff >= priceThreshold,
+                        volume: (currentState.volume && prevState.volume) ? (currentState.volume / prevState.volume >= volumeThreshold) : false,
+                        ma: false
+                    };
+
+                    if (status.price) {
+                        const direction = currentState.price > prevState.price ? '🚀 快速拉升' : '📉 快速砸盘';
+                        matches.push(`${direction} (${priceDiff.toFixed(2)}%)`);
+                    }
+                    if (status.volume) {
+                        const volRatio = currentState.volume / prevState.volume;
+                        matches.push(`🔊 成交量激增 (${volRatio.toFixed(1)}倍)`);
+                    }
+
+                    // 检查均线交叉 (如果开启)
+                    if (params.ma_cross) {
+                        const maData = await pythonClient.getMACross(symbol);
+                        if (maData && maData.cross) {
+                            status.ma = true;
+                            const crossText = maData.cross === 'golden_cross' ? '🌟 金叉 (MA5上穿MA20)' : '💀 死叉 (MA5下穿MA20)';
+                            matches.push(crossText);
+                        }
+                    }
+
+                    // 逻辑判定
+                    let isTriggered = false;
+                    if (triggerLogic === 'and') {
+                        // AND 逻辑：所有启用的主要阈值必须同时满足 (MA如果开启也必须满足)
+                        isTriggered = status.price && status.volume;
+                        if (params.ma_cross) isTriggered = isTriggered && status.ma;
+                    } else {
+                        // OR 逻辑：满足任一条件即触发
+                        isTriggered = status.price || status.volume || (params.ma_cross && status.ma);
+                    }
+
+                    if (isTriggered) {
+                        const reason = matches.join(' + ');
+                        alerts.push(`【监控触发】${symbol}\n原因: ${reason}\n当前价格: ${currentState.price}\n市场状态: ${currentState.session}`);
+                    }
+                }
+
+                // 更新状态 (保存最新价格和成交量)
+                this.lastStates.set(symbol, currentState);
+            } catch (err) {
+                logger.error(`Error monitoring ${symbol}: ${err.message}`);
+            }
+        }
+
+        // 2. 发送汇总警报
+        if (alerts.length > 0) {
+            const message = `🔔 【异动盯盘警报】\n任务: ${task.name}\n检测到 ${alerts.length} 个标的出现异动：\n\n${alerts.join('\n---\n')}`;
+            logger.info(`Sending ${alerts.length} alerts...`);
+
+            // 调用推送接口 (复用 routes/api.js 里的 Python 推送逻辑)
+            try {
+                this.sendPushNotification(message);
+            } catch (pushErr) {
+                logger.error(`Failed to send push notification: ${pushErr.message}`);
+            }
+
+            if (global.io) {
+                global.io.emit('task_notification', {
+                    taskId: task._id.toString(),
+                    title: '异动盯盘警报',
+                    message: `${alerts.length} 个标的异动`,
+                    type: 'warning'
+                });
+            }
+        }
+    }
+
+    async sendPushNotification(message) {
+        const scriptPath = path.resolve(process.cwd(), 'python_service', 'TrendRadar', 'push_monitor.py');
+        const venvPythonStr = path.resolve(process.cwd(), 'python_service', 'venv', 'bin', 'python');
+
+        // 调用专用的通用推送脚本
+        spawn(venvPythonStr, [scriptPath], {
+            cwd: path.resolve(process.cwd(), 'python_service', 'TrendRadar'),
+            env: { ...process.env, PUSH_MESSAGE: message }
         });
     }
 }

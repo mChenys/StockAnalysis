@@ -195,13 +195,6 @@ function setupGlobalEventListeners() {
             testPushConfig();
         }
 
-        if (target.id === 'create-task-btn' || target.closest('#create-task-btn')) {
-            document.getElementById('taskFormTitle').innerHTML = '<i class="bi bi-pencil-square text-success me-2"></i>配置新任务';
-            document.getElementById('taskForm').reset();
-            document.getElementById('task_id').value = '';
-            document.getElementById('taskFormCard').style.display = 'block';
-            window.scrollTo({ top: document.getElementById('taskFormCard').offsetTop, behavior: 'smooth' });
-        }
 
         if (target.id === 'close-task-form-btn' || target.closest('#close-task-form-btn') ||
             target.id === 'cancel-task-form-btn' || target.closest('#cancel-task-form-btn')) {
@@ -990,6 +983,12 @@ function initializeSocket() {
                 apiFetch('/api/trendradar/stats').then(stats => {
                     if (stats.success) localStorage.setItem('trendradar_last_stats', JSON.stringify(stats));
                 });
+                // 更新显示时间
+                const lastCheckEl = document.getElementById('trendradar-last-check');
+                if (lastCheckEl) {
+                    const now = new Date();
+                    lastCheckEl.textContent = `上次更新: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+                }
             }
             if (btn) btn.disabled = false;
             if (spinner) spinner.classList.add('d-none');
@@ -1286,6 +1285,28 @@ async function editTask(taskId) {
                 document.getElementById('task_schedule_type').dispatchEvent(event);
                 document.getElementById('task_desc').value = task.description || '';
 
+                // 处理异动盯盘专用参数加载
+                if (window.updateMonitorConfigVisibility) {
+                    window.updateMonitorConfigVisibility(task.type);
+                }
+                if (task.type === 'market_monitor' && task.parameters) {
+                    const params = task.parameters;
+                    if (params.price_change) document.getElementById('param_price_change').value = params.price_change;
+                    if (params.volume_ratio) document.getElementById('param_volume_ratio').value = params.volume_ratio;
+                    if (params.ma_cross !== undefined) document.getElementById('param_ma_cross').checked = params.ma_cross;
+                    if (params.trigger_logic !== undefined) {
+                        const tlToggle = document.getElementById('param_trigger_logic');
+                        tlToggle.checked = params.trigger_logic === 'and';
+                        const tlLabel = document.getElementById('trigger_logic_label');
+                        if (tlLabel) tlLabel.innerText = tlToggle.checked ? '并且 (需同时满足所有条件)' : '或者 (满足其中之一即触发)';
+                    }
+                    if (params.scope) {
+                        const scopeRadio = document.querySelector(`input[name="param_scope"][value="${params.scope}"]`);
+                        if (scopeRadio) scopeRadio.checked = true;
+                    }
+                }
+
+
                 document.getElementById('taskFormTitle').innerHTML = '<i class="bi bi-pencil-square text-success me-2"></i>编辑修改任务';
                 document.getElementById('taskFormCard').style.display = 'block';
                 window.scrollTo({ top: document.getElementById('taskFormCard').offsetTop, behavior: 'smooth' });
@@ -1319,6 +1340,10 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('taskFormTitle').innerHTML = '<i class="bi bi-pencil-square text-success me-2"></i>配置新任务';
             document.getElementById('taskForm').reset();
             document.getElementById('task_id').value = '';
+            if (window.updateMonitorConfigVisibility) {
+                window.updateMonitorConfigVisibility('trendradar_report');
+            }
+
             document.getElementById('taskFormCard').style.display = 'block';
             window.scrollTo({ top: document.getElementById('taskFormCard').offsetTop, behavior: 'smooth' });
         }
@@ -1372,6 +1397,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const taskTypeSelect = document.getElementById('task_type');
+    const updateMonitorConfigVisibility = (type) => {
+        const monitorConfig = document.getElementById('market_monitor_configs');
+        if (!monitorConfig) return;
+        if (type === 'market_monitor') {
+            monitorConfig.style.setProperty('display', 'block', 'important');
+        } else {
+            monitorConfig.style.setProperty('display', 'none', 'important');
+        }
+    };
+
+    if (taskTypeSelect) {
+        taskTypeSelect.addEventListener('change', (e) => {
+            updateMonitorConfigVisibility(e.target.value);
+        });
+
+        const triggerLogicToggle = document.getElementById('param_trigger_logic');
+        if (triggerLogicToggle) {
+            triggerLogicToggle.addEventListener('change', (e) => {
+                const label = document.getElementById('trigger_logic_label');
+                if (label) {
+                    label.innerText = e.target.checked ? '并且 (需同时满足所有条件)' : '或者 (满足其中之一即触发)';
+                }
+            });
+        }
+    }
+
+    // 将函数暴露给 editTask 使用
+    window.updateMonitorConfigVisibility = updateMonitorConfigVisibility;
+
     const taskForm = document.getElementById('taskForm');
     if (taskForm) {
         taskForm.addEventListener('submit', async (e) => {
@@ -1396,8 +1451,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: document.getElementById('task_type').value,
                 cronExpression: finalCron,
                 active: document.getElementById('task_active').checked,
-                description: document.getElementById('task_desc').value.trim()
+                description: document.getElementById('task_desc').value.trim(),
+                parameters: {}
             };
+
+            // 如果是异动盯盘，收集额外参数
+            if (payload.type === 'market_monitor') {
+                payload.parameters = {
+                    price_change: parseFloat(document.getElementById('param_price_change').value) || 2.0,
+                    volume_ratio: parseFloat(document.getElementById('param_volume_ratio').value) || 1.5,
+                    ma_cross: document.getElementById('param_ma_cross').checked,
+                    trigger_logic: document.getElementById('param_trigger_logic').checked ? 'and' : 'or',
+                    scope: document.querySelector('input[name="param_scope"]:checked')?.value || 'favorites'
+                };
+            }
 
             const isRunNow = e.submitter && e.submitter.id === 'save-run-now-btn';
 

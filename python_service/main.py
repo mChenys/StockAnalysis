@@ -1162,12 +1162,21 @@ async def get_stock_price(req: dict):
                 pass
                 
         # 3. Try history
+        volume = 0
         if current_price is None or current_price == 0:
             try:
                 hist = ticker.history(period="1d")
                 if not hist.empty:
                     current_price = float(hist["Close"].iloc[-1])
                     previous_close = float(hist["Open"].iloc[-1])
+                    volume = int(hist["Volume"].iloc[-1])
+            except:
+                pass
+        
+        # Also try to get volume from fast_info if not set
+        if volume == 0:
+            try:
+                volume = int(ticker.fast_info.last_volume)
             except:
                 pass
 
@@ -1190,6 +1199,7 @@ async def get_stock_price(req: dict):
                 "currentPrice": current_price,
                 "previousClose": previous_close,
                 "changePercent": change_percent,
+                "volume": volume,
                 "session": get_market_session(),
                 "name": symbol,
                 "source": "yfinance_direct_robust"
@@ -1239,6 +1249,16 @@ async def get_stock_history(req: dict):
     except Exception as e:
         logger.error(f"Error fetching history for {req.get('symbol')}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/stock/ma_cross")
+async def get_ma_cross(req: dict):
+    from stock_data import check_ma_cross
+    symbol = req.get("symbol")
+    if not symbol:
+        raise HTTPException(status_code=400, detail="Symbol is required")
+    result = check_ma_cross(symbol)
+    return {"success": True, "data": result}
 
 
 # ─── Entry Point ────────────────────────────────────────────

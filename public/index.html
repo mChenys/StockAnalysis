@@ -99,13 +99,41 @@
             padding: 15px;
             margin-bottom: 20px;
         }
-        .bg-indigo-soft { background: #f3f0ff; color: #5f3dc4; }
-        .bg-success-soft { background: #ebfbee; color: #2b8a3e; }
-        .bg-warning-soft { background: #fff9db; color: #f08c00; }
-        .badge { font-weight: 500; font-size: 0.75rem; }
-        .btn-white { background: #fff; color: #495057; border: 1px solid #dee2e6; }
-        .btn-white:hover { background: #f8f9fa; }
-        .card-custom { border-radius: 12px; border: 1px solid rgba(0,0,0,0.05); }
+
+        .bg-indigo-soft {
+            background: #f3f0ff;
+            color: #5f3dc4;
+        }
+
+        .bg-success-soft {
+            background: #ebfbee;
+            color: #2b8a3e;
+        }
+
+        .bg-warning-soft {
+            background: #fff9db;
+            color: #f08c00;
+        }
+
+        .badge {
+            font-weight: 500;
+            font-size: 0.75rem;
+        }
+
+        .btn-white {
+            background: #fff;
+            color: #495057;
+            border: 1px solid #dee2e6;
+        }
+
+        .btn-white:hover {
+            background: #f8f9fa;
+        }
+
+        .card-custom {
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
     </style>
 </head>
 
@@ -117,19 +145,30 @@
                 <div class="position-sticky pt-4">
                     <h5 class="text-center mb-4 text-primary fw-bold"><i class="bi bi-robot"></i> AI 股票系统</h5>
                     <ul class="nav flex-column" id="main-nav">
-                        <li class="nav-item"><a class="nav-link" href="/agent"><i class="bi bi-robot"></i> AI Agent 对话</a></li>
-                        <li class="nav-item"><a class="nav-link active" href="#" data-section="dashboard"><i class="bi bi-speedometer2"></i>
+                        <li class="nav-item"><a class="nav-link" href="/agent"><i class="bi bi-robot"></i> AI Agent
+                                对话</a></li>
+                        <li class="nav-item"><a class="nav-link active" href="#" data-section="dashboard"><i
+                                    class="bi bi-speedometer2"></i>
                                 仪表盘</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" data-section="models"><i class="bi bi-cpu"></i> 模型管理</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" data-section="analysis"><i class="bi bi-graph-up"></i> 智能分析</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" data-section="favorites"><i class="bi bi-star-fill text-warning"></i>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="models"><i
+                                    class="bi bi-cpu"></i> 模型管理</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="analysis"><i
+                                    class="bi bi-graph-up"></i> 智能分析</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="favorites"><i
+                                    class="bi bi-star-fill text-warning"></i>
                                 我的收藏</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" data-section="news"><i class="bi bi-newspaper"></i> 财经新闻</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" data-section="trendradar"><i class="bi bi-radar"></i> 全网热点雷达</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" data-section="situation"><i class="bi bi-globe"></i> 全球态势监控</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" data-section="scheduler"><i class="bi bi-clock"></i> 定时任务</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" data-section="notifications"><i class="bi bi-bell"></i> 推送设置</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" data-section="users"><i class="bi bi-people"></i> 用户管理</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="news"><i
+                                    class="bi bi-newspaper"></i> 财经新闻</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="trendradar"><i
+                                    class="bi bi-radar"></i> 全网热点雷达</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="situation"><i
+                                    class="bi bi-globe"></i> 全球态势监控</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="scheduler"><i
+                                    class="bi bi-clock"></i> 定时任务</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="notifications"><i
+                                    class="bi bi-bell"></i> 推送设置</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" data-section="users"><i
+                                    class="bi bi-people"></i> 用户管理</a></li>
                     </ul>
                 </div>
             </nav>
@@ -142,17 +181,24 @@
                             <div class="card card-custom p-4">
                                 <h3 id="auth-title" class="text-center mb-4">欢迎回来</h3>
                                 <form id="loginForm">
-                                    <div class="mb-3"><input type="text" class="form-control" name="username" placeholder="用户名或邮箱" required></div>
-                                    <div class="mb-3"><input type="password" class="form-control" name="password" placeholder="请输入密码" required></div>
+                                    <div class="mb-3"><input type="text" class="form-control" name="username"
+                                            placeholder="用户名或邮箱" required></div>
+                                    <div class="mb-3"><input type="password" class="form-control" name="password"
+                                            placeholder="请输入密码" required></div>
                                     <button type="submit" class="btn btn-primary w-100">立即登录</button>
-                                    <div class="mt-3 text-center"><a href="#" id="to-register-link" class="small">没有账号？点击注册</a></div>
+                                    <div class="mt-3 text-center"><a href="#" id="to-register-link"
+                                            class="small">没有账号？点击注册</a></div>
                                 </form>
                                 <form id="registerForm" style="display: none;">
-                                    <div class="mb-3"><input type="text" class="form-control" name="username" placeholder="用户名" required></div>
-                                    <div class="mb-3"><input type="email" class="form-control" name="email" placeholder="电子邮箱" required></div>
-                                    <div class="mb-3"><input type="password" class="form-control" name="password" placeholder="密码 (至少6位)" required></div>
+                                    <div class="mb-3"><input type="text" class="form-control" name="username"
+                                            placeholder="用户名" required></div>
+                                    <div class="mb-3"><input type="email" class="form-control" name="email"
+                                            placeholder="电子邮箱" required></div>
+                                    <div class="mb-3"><input type="password" class="form-control" name="password"
+                                            placeholder="密码 (至少6位)" required></div>
                                     <button type="submit" class="btn btn-success w-100">创建账号</button>
-                                    <div class="mt-3 text-center"><a href="#" id="to-login-link" class="small">已有账号？返回登录</a></div>
+                                    <div class="mt-3 text-center"><a href="#" id="to-login-link"
+                                            class="small">已有账号？返回登录</a></div>
                                 </form>
                             </div>
                         </div>
@@ -194,27 +240,32 @@
                         <div class="col-md-4">
                             <div class="card card-custom p-3">
                                 <form id="analysis-form">
-                                    <div class="mb-3"><label class="form-label small fw-bold">股票代码</label><input type="text" class="form-control"
-                                            id="analysis-symbol" placeholder="如: NVDA" required></div>
-                                    <div class="mb-3"><label class="form-label small fw-bold">分析模型</label><select class="form-select" id="analysis-model"
-                                            required></select></div>
+                                    <div class="mb-3"><label class="form-label small fw-bold">股票代码</label><input
+                                            type="text" class="form-control" id="analysis-symbol" placeholder="如: NVDA"
+                                            required></div>
+                                    <div class="mb-3"><label class="form-label small fw-bold">分析模型</label><select
+                                            class="form-select" id="analysis-model" required></select></div>
                                     <div class="alert alert-light border small py-2"><i class="bi bi-info-circle"></i>
                                         系统将并行执行 9 大维度（技术、基本面、情绪、风险、宏观、竞争等）的深度分析。</div>
                                     <button type="submit" class="btn btn-primary w-100" id="start-analysis-btn">
-                                        <span class="spinner-border spinner-border-sm d-none" id="analysis-spinner"></span> 开始全维研判
+                                        <span class="spinner-border spinner-border-sm d-none"
+                                            id="analysis-spinner"></span> 开始全维研判
                                     </button>
                                 </form>
                             </div>
                         </div>
                         <div class="col-md-8">
                             <div class="card card-custom">
-                                <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                                <div
+                                    class="card-header bg-transparent d-flex justify-content-between align-items-center">
                                     <span class="fw-bold">研报详情</span>
-                                    <button class="btn btn-sm btn-outline-warning d-none" id="save-to-favorites-btn"><i class="bi bi-star"></i> 收藏</button>
+                                    <button class="btn btn-sm btn-outline-warning d-none" id="save-to-favorites-btn"><i
+                                            class="bi bi-star"></i> 收藏</button>
                                 </div>
                                 <div class="card-body">
                                     <div id="analysis-result-content">
-                                        <div class="text-center text-muted py-5"><i class="bi bi-clipboard-data" style="font-size: 3rem;"></i>
+                                        <div class="text-center text-muted py-5"><i class="bi bi-clipboard-data"
+                                                style="font-size: 3rem;"></i>
                                             <p class="mt-2">请在左侧配置参数并启动分析</p>
                                         </div>
                                     </div>
@@ -238,79 +289,92 @@
                     <div id="favorites-detail-view" style="display: none;">
                         <div class="section-header">
                             <h2 id="fav-detail-title">研报详情</h2>
-                            <button class="btn btn-outline-secondary btn-sm" id="back-to-fav-list-btn"><i class="bi bi-arrow-left"></i>
+                            <button class="btn btn-outline-secondary btn-sm" id="back-to-fav-list-btn"><i
+                                    class="bi bi-arrow-left"></i>
                                 返回列表</button>
+                        </div>
+                        <div class="card card-custom p-4">
+                            <div id="fav-detail-content"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 财经新闻模块 -->
+                <div id="news" class="section" style="display: none;">
+                    <div
+                        class="section-header d-flex flex-wrap justify-content-between align-items-center mb-4 border-bottom pb-3">
+                        <div class="d-flex align-items-center mb-2 mb-md-0">
+                            <h2 class="mb-0 me-3">实时财经</h2>
+                            <button class="btn btn-primary btn-sm me-2" id="ingest-news-btn"><i
+                                    class="bi bi-arrow-clockwise"></i>
+                                刷新资讯</button>
+                            <span id="news-refresh-time" class="text-muted small" style="font-size: 0.75rem;"></span>
+                        </div>
+                        <div class="d-flex align-items-center flex-wrap gap-2 flex-grow-1 ms-4">
+                            <div id="news-tags-container" class="d-flex flex-wrap gap-2"></div>
+                            <div class="input-group input-group-sm" style="width: 150px;">
+                                <input type="text" id="custom-tag-input" class="form-control" placeholder="添加新标签 +"
+                                    onkeypress="if(event.key === 'Enter') document.getElementById('add-tag-btn').click()">
+                                <button class="btn btn-outline-secondary" id="add-tag-btn"><i
+                                        class="bi bi-plus"></i></button>
                             </div>
-                            <div class="card card-custom p-4">
-                                <div id="fav-detail-content"></div>
+                        </div>
+                    </div>
+                    <div id="news-feed-container" class="row"></div>
+                </div>
+
+                <!-- 全网热点雷达模块 -->
+                <div id="trendradar" class="section"
+                    style="display: none; height: 92vh; display: flex; flex-direction: column;">
+                    <div
+                        class="section-header d-flex flex-wrap justify-content-between align-items-center mb-0 pb-2 border-bottom">
+                        <h2 class="mb-0">全网热点雷达</h2>
+                        <div class="d-flex align-items-center gap-2">
+                            <div id="trendradar-last-check" class="text-muted small me-2" style="font-size: 0.75rem;">
                             </div>
-                            </div>
-                            </div>
-                            
-                            <!-- 财经新闻模块 -->
-                            <div id="news" class="section" style="display: none;">
-                                <div class="section-header d-flex flex-wrap justify-content-between align-items-center mb-4 border-bottom pb-3">
-                                    <div class="d-flex align-items-center mb-2 mb-md-0">
-                                        <h2 class="mb-0 me-3">实时财经</h2>
-                                        <button class="btn btn-primary btn-sm me-2" id="ingest-news-btn"><i class="bi bi-arrow-clockwise"></i>
-                                            刷新资讯</button>
-                                        <span id="news-refresh-time" class="text-muted small" style="font-size: 0.75rem;"></span>
-                                    </div>
-                                    <div class="d-flex align-items-center flex-wrap gap-2 flex-grow-1 ms-4">
-                                        <div id="news-tags-container" class="d-flex flex-wrap gap-2"></div>
-                                        <div class="input-group input-group-sm" style="width: 150px;">
-                                            <input type="text" id="custom-tag-input" class="form-control" placeholder="添加新标签 +"
-                                                onkeypress="if(event.key === 'Enter') document.getElementById('add-tag-btn').click()">
-                                            <button class="btn btn-outline-secondary" id="add-tag-btn"><i class="bi bi-plus"></i></button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div id="news-feed-container" class="row"></div>
-                            </div>
-                            
-                            <!-- 全网热点雷达模块 -->
-                            <div id="trendradar" class="section" style="display: none; height: 92vh; display: flex; flex-direction: column;">
-                                <div class="section-header d-flex flex-wrap justify-content-between align-items-center mb-0 pb-2 border-bottom">
-                                    <h2 class="mb-0">全网热点雷达</h2>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div id="trendradar-last-check" class="text-muted small me-2" style="font-size: 0.75rem;"></div>
-                                        <select class="form-select form-select-sm" id="trendradar-model-select" style="width: 200px;"></select>
-                                        <button class="btn btn-outline-info btn-sm" id="trendradar-reload-btn" title="查看当前磁盘上已有的最新报告">
-                                            <i class="bi bi-arrow-clockwise"></i> 刷新视图
-                                        </button>
-                                        <button class="btn btn-primary btn-sm" id="trendradar-refresh-btn" title="触发 AI 重新爬取并生成深度分析报告">
-                                            <i class="bi bi-robot"></i> 重新生成AI分析
-                                        </button>
-                                        <div id="trendradar-spinner" class="spinner-border spinner-border-sm text-primary d-none ms-2"></div>
-                                    </div>
-                                </div>
-                                <div style="flex-grow: 1; margin: 0 -1.5rem;">
-                                    <iframe src="http://localhost:8001" style="width: 100%; height: 100%; border: none; display: block;"
-                                        id="trendradar-frame" title="TrendRadar"></iframe>
-                                </div>
-                            </div>
-                            <!-- 全球态势监控模块 -->
-                            <div id="situation" class="section"
-                                style="display: none; height: 92vh; margin: -1.5rem -1.5rem 0 -1.5rem; position: relative;">
-                                <div style="position: absolute; top: 15px; right: 15px; z-index: 1000;">
-                                    <button class="btn btn-light btn-sm shadow-sm" onclick="document.getElementById('situation-frame').src += ''"
-                                        title="刷新态势图">
-                                        <i class="bi bi-arrow-clockwise"></i> 刷新地图
-                                    </button>
-                                </div>
-                                <iframe src="http://localhost:3005" style="width: 100%; height: 100%; border: none; display: block;"
-                                    id="situation-frame" title="Situation Monitor"></iframe>
-                            </div>
+                            <select class="form-select form-select-sm" id="trendradar-model-select"
+                                style="width: 200px;"></select>
+                            <button class="btn btn-outline-info btn-sm" id="trendradar-reload-btn"
+                                title="查看当前磁盘上已有的最新报告">
+                                <i class="bi bi-arrow-clockwise"></i> 刷新视图
+                            </button>
+                            <button class="btn btn-primary btn-sm" id="trendradar-refresh-btn"
+                                title="触发 AI 重新爬取并生成深度分析报告">
+                                <i class="bi bi-robot"></i> 重新生成AI分析
+                            </button>
+                            <div id="trendradar-spinner"
+                                class="spinner-border spinner-border-sm text-primary d-none ms-2"></div>
+                        </div>
+                    </div>
+                    <div style="flex-grow: 1; margin: 0 -1.5rem;">
+                        <iframe src="http://localhost:8001"
+                            style="width: 100%; height: 100%; border: none; display: block;" id="trendradar-frame"
+                            title="TrendRadar"></iframe>
+                    </div>
+                </div>
+                <!-- 全球态势监控模块 -->
+                <div id="situation" class="section"
+                    style="display: none; height: 92vh; margin: -1.5rem -1.5rem 0 -1.5rem; position: relative;">
+                    <div style="position: absolute; top: 15px; right: 15px; z-index: 1000;">
+                        <button class="btn btn-light btn-sm shadow-sm"
+                            onclick="document.getElementById('situation-frame').src += ''" title="刷新态势图">
+                            <i class="bi bi-arrow-clockwise"></i> 刷新地图
+                        </button>
+                    </div>
+                    <iframe src="http://localhost:3005" style="width: 100%; height: 100%; border: none; display: block;"
+                        id="situation-frame" title="Situation Monitor"></iframe>
+                </div>
 
                 <div id="scheduler" class="section" style="display: none;">
                     <h2 class="h3 fw-bold mb-4 border-bottom pb-2">AI 定时任务与自动化推送</h2>
                     <p class="text-muted mb-4">设定自动化巡航策略，让 AI 定期为您扫描市场、输出报告并自动推送到指定渠道。</p>
-                
+
                     <!-- 任务列表 -->
                     <div class="card card-custom mb-4 shadow-sm">
                         <div class="card-header bg-white d-flex justify-content-between align-items-center">
                             <h5 class="mb-0 fw-bold"><i class="bi bi-list-task text-primary me-2"></i>当前任务列表</h5>
-                            <button class="btn btn-sm btn-primary fw-bold" id="create-task-btn"><i class="bi bi-plus-lg"></i>
+                            <button class="btn btn-sm btn-primary fw-bold" id="create-task-btn"><i
+                                    class="bi bi-plus-lg"></i>
                                 创建新任务</button>
                         </div>
                         <div class="card-body">
@@ -335,17 +399,18 @@
                             </div>
                         </div>
                     </div>
-                
+
                     <!-- 新建/编辑任务表单 -->
                     <div class="card card-custom shadow-sm mb-4" id="taskFormCard" style="display: none;">
                         <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0 fw-bold" id="taskFormTitle"><i class="bi bi-pencil-square text-success me-2"></i>配置新任务</h5>
+                            <h5 class="mb-0 fw-bold" id="taskFormTitle"><i
+                                    class="bi bi-pencil-square text-success me-2"></i>配置新任务</h5>
                             <button type="button" class="btn-close" id="close-task-form-btn"></button>
                         </div>
                         <div class="card-body">
                             <form id="taskForm">
                                 <input type="hidden" id="task_id" name="task_id">
-                
+
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label fw-bold">任务名称</label>
@@ -373,19 +438,24 @@
                                                 <option value="interval_mins">每隔几分钟</option>
                                                 <option value="cron">高级 Cron</option>
                                             </select>
-                                            <input type="time" class="form-control fw-bold text-primary" id="task_time" value="08:00">
-                                            <input type="number" class="form-control fw-bold text-primary" id="task_interval" value="30"
-                                                min="1" placeholder="填入分钟数" style="display:none;">
-                                            <input type="text" class="form-control text-muted" name="task_cron" id="task_cron"
-                                                placeholder="0 8 * * *" value="0 8 * * *" style="display:none;">
+                                            <input type="time" class="form-control fw-bold text-primary" id="task_time"
+                                                value="08:00">
+                                            <input type="number" class="form-control fw-bold text-primary"
+                                                id="task_interval" value="30" min="1" placeholder="填入分钟数"
+                                                style="display:none;">
+                                            <input type="text" class="form-control text-muted" name="task_cron"
+                                                id="task_cron" placeholder="0 8 * * *" value="0 8 * * *"
+                                                style="display:none;">
                                         </div>
-                                        <div class="form-text mt-1 text-muted" id="task_schedule_hint">设置一个闹钟时间，系统将在每天的这个时刻准点击发此任务。
+                                        <div class="form-text mt-1 text-muted" id="task_schedule_hint">
+                                            设置一个闹钟时间，系统将在每天的这个时刻准点击发此任务。
                                         </div>
                                     </div>
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label fw-bold">启用状态</label>
                                         <div class="form-check form-switch mt-2">
-                                            <input class="form-check-input" type="checkbox" id="task_active" name="task_active" checked>
+                                            <input class="form-check-input" type="checkbox" id="task_active"
+                                                name="task_active" checked>
                                             <label class="form-check-label" for="task_active">创建后自动加入后台定时器</label>
                                         </div>
                                     </div>
@@ -395,7 +465,88 @@
                                     <textarea class="form-control" name="task_desc" id="task_desc" rows="2"
                                         placeholder="用于记录这是用来做什么的..."></textarea>
                                 </div>
-                
+
+                                <!-- 异动盯盘专用设置 (初始隐藏) -->
+                                <div id="market_monitor_configs"
+                                    class="p-3 mb-4 rounded bg-light border border-primary shadow-sm"
+                                    style="display: none; border-style: dashed !important;">
+                                    <h6 class="fw-bold text-primary mb-3"><i
+                                            class="bi bi-gear-wide-connected me-2"></i>异动盯盘策略配置</h6>
+                                    <div class="row">
+                                        <div class="col-md-4 mb-3">
+                                            <label class="form-label small fw-bold">价格剧烈波动阀值 (%)</label>
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text">±</span>
+                                                <input type="number" class="form-control" id="param_price_change"
+                                                    value="2.0" step="0.1">
+                                                <span class="input-group-text">%</span>
+                                            </div>
+                                            <div class="form-text mt-1" style="font-size: 0.7rem;">5分钟内涨跌幅触发</div>
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label class="form-label small fw-bold">成交量异常放大 (倍)</label>
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text">></span>
+                                                <input type="number" class="form-control" id="param_volume_ratio"
+                                                    value="1.5" step="0.1">
+                                                <span class="input-group-text">倍</span>
+                                            </div>
+                                            <div class="form-text mt-1" style="font-size: 0.7rem;">对比前5日均量</div>
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label class="form-label small fw-bold">特殊信号监控</label>
+                                            <div class="form-check form-switch mt-1">
+                                                <input class="form-check-input" type="checkbox" id="param_ma_cross"
+                                                    checked>
+                                                <label class="form-check-label small" for="param_ma_cross">金叉/死叉
+                                                    (5/20线)</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <div class="col-md-12">
+                                            <div class="p-2 rounded bg-white border d-flex align-items-center"
+                                                style="border-style: solid !important;">
+                                                <div class="d-flex align-items-center">
+                                                    <i class="bi bi-funnel-fill text-primary me-2"></i>
+                                                    <label class="form-label small fw-bold mb-0">多条件触发逻辑切换</label>
+                                                </div>
+                                                <div class="form-check form-switch mb-0 ms-4">
+                                                    <input class="form-check-input" type="checkbox"
+                                                        id="param_trigger_logic">
+                                                    <label class="form-check-label small fw-bold"
+                                                        for="param_trigger_logic" id="trigger_logic_label">或者
+                                                        (满足其中之一即触发)</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2">
+                                        <div class="col-md-12">
+                                            <label class="form-label small fw-bold">监控范围选择</label>
+                                            <div class="d-flex gap-3">
+                                                <div class="form-check">
+                                                    <input class="form-check-radio" type="radio" name="param_scope"
+                                                        value="favorites" id="scope_fav" checked>
+                                                    <label class="form-check-label small" for="scope_fav">我的收藏
+                                                        (自选股)</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-radio" type="radio" name="param_scope"
+                                                        value="sectors" id="scope_sectors">
+                                                    <label class="form-check-label small"
+                                                        for="scope_sectors">12大重点权重板块</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-radio" type="radio" name="param_scope"
+                                                        value="both" id="scope_both">
+                                                    <label class="form-check-label small" for="scope_both">两者全部</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <hr>
                                 <div class="d-flex gap-2">
                                     <button type="submit" class="btn btn-success fw-bold px-4" id="save-task-btn"><i
@@ -426,21 +577,23 @@
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label text-muted small">Chat ID</label>
-                                    <input type="text" class="form-control" name="telegram_chat_id" placeholder="如: -1001234567890">
+                                    <input type="text" class="form-control" name="telegram_chat_id"
+                                        placeholder="如: -1001234567890">
                                 </div>
                             </div>
-                
+
                             <h5 class="fw-bold text-info mt-4"><i class="bi bi-chat-dots"></i> 钉钉机器人设置</h5>
                             <div class="mb-3">
                                 <label class="form-label text-muted small d-flex justify-content-between">
                                     <span>Webhook URL</span>
-                                    <a href="https://open.dingtalk.com/document/robots/custom-robot-access" target="_blank"
-                                        class="text-decoration-none"><i class="bi bi-question-circle"></i> 如何获取?</a>
+                                    <a href="https://open.dingtalk.com/document/robots/custom-robot-access"
+                                        target="_blank" class="text-decoration-none"><i
+                                            class="bi bi-question-circle"></i> 如何获取?</a>
                                 </label>
                                 <input type="text" class="form-control" name="dingtalk_webhook_url"
                                     placeholder="https://oapi.dingtalk.com/robot/send?access_token=...">
                             </div>
-                
+
                             <h5 class="fw-bold text-success mt-4"><i class="bi bi-wechat"></i> 企业微信机器人设置</h5>
                             <div class="mb-3">
                                 <label class="form-label text-muted small d-flex justify-content-between">
@@ -451,16 +604,17 @@
                                 <input type="text" class="form-control" name="wework_webhook_url"
                                     placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...">
                             </div>
-                
+
                             <h5 class="fw-bold text-danger mt-4"><i class="bi bi-apple"></i> Bark APP 推送设置</h5>
                             <div class="mb-4">
                                 <label class="form-label text-muted small">Bark URL</label>
                                 <input type="text" class="form-control" name="bark_url"
                                     placeholder="https://api.day.app/your_device_key/">
                             </div>
-                
+
                             <div class="d-flex gap-3 mt-4">
-                                <button type="submit" class="btn btn-primary px-4 py-2 fw-bold shadow-sm" id="save-push-config-btn">
+                                <button type="submit" class="btn btn-primary px-4 py-2 fw-bold shadow-sm"
+                                    id="save-push-config-btn">
                                     <i class="bi bi-save"></i> 保存通道设置
                                 </button>
                                 <button type="button" class="btn btn-outline-success px-4 py-2 fw-bold shadow-sm"
@@ -475,8 +629,8 @@
                 <!-- 模型管理模块 -->
                 <div id="models" class="section" style="display: none;">
                     <div class="section-header">
-                        <h2>AI模型集群</h2><button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addModelModal"><i
-                                class="bi bi-plus"></i> 添加模型</button>
+                        <h2>AI模型集群</h2><button class="btn btn-primary btn-sm" data-bs-toggle="modal"
+                            data-bs-target="#addModelModal"><i class="bi bi-plus"></i> 添加模型</button>
                     </div>
                     <!-- NVIDIA NIM Zone -->
                     <div class="card mb-4 border-0 shadow-sm bg-light">
@@ -486,7 +640,8 @@
                             <p class="card-text text-muted small">输入您的 NVIDIA 开发者 API Key，一键获取当前最新且可用的 NIM 大模型列表。</p>
                             <div class="input-group mb-3">
                                 <input type="password" class="form-control" id="nvidia-api-key" placeholder="nvapi-...">
-                                <button class="btn btn-success" type="button" id="fetch-nvidia-models-btn">搜索可用模型</button>
+                                <button class="btn btn-success" type="button"
+                                    id="fetch-nvidia-models-btn">搜索可用模型</button>
                             </div>
                             <div id="nvidia-search-spinner" class="d-none text-center my-3">
                                 <div class="spinner-border text-success spinner-border-sm"></div> 正在同步 NVIDIA 模型列表...
@@ -511,59 +666,63 @@
                 </div>
                 <div class="modal-body p-4">
                     <form id="addModelForm">
-                        <div class="mb-3"><label class="form-label">模型显示名称</label><input type="text" class="form-control" name="name"
-                                placeholder="例如: 生产环境-NVIDIA-GLM" required></div>
-                        <div class="mb-3"><label class="form-label">服务提供商</label><select class="form-select" name="provider" id="providerSelect"
-                                required>
+                        <div class="mb-3"><label class="form-label">模型显示名称</label><input type="text"
+                                class="form-control" name="name" placeholder="例如: 生产环境-NVIDIA-GLM" required></div>
+                        <div class="mb-3"><label class="form-label">服务提供商</label><select class="form-select"
+                                name="provider" id="providerSelect" required>
                                 <option value="">请选择...</option>
                                 <option value="openai">OpenAI / NVIDIA NIM</option>
                                 <option value="claude">Claude</option>
                             </select></div>
-                        <div class="mb-3"><label class="form-label">API Key</label><input type="password" class="form-control" name="apiKey"
-                                required></div>
-                        <div class="mb-3"><label class="form-label">API 基础 URL</label><input type="url" class="form-control" name="baseUrl"
-                                id="baseUrl" placeholder="https://api.openai.com/v1"></div>
-                        <div class="mb-3"><label class="form-label">模型标识 (Model ID)</label><select class="form-select" name="model"
-                                id="modelSelect" required></select></div>
+                        <div class="mb-3"><label class="form-label">API Key</label><input type="password"
+                                class="form-control" name="apiKey" required></div>
+                        <div class="mb-3"><label class="form-label">API 基础 URL</label><input type="url"
+                                class="form-control" name="baseUrl" id="baseUrl"
+                                placeholder="https://api.openai.com/v1"></div>
+                        <div class="mb-3"><label class="form-label">模型标识 (Model ID)</label><select class="form-select"
+                                name="model" id="modelSelect" required></select></div>
                         <div class="row">
-                            <div class="col-6"><label class="form-label">最大 Token 数</label><input type="number" class="form-control"
-                                    name="maxTokens" value="4000"></div>
-                            <div class="col-6"><label class="form-label">温度参数 (Temp)</label><input type="number" class="form-control"
-                                    name="temperature" value="0.7" step="0.1" min="0" max="2">
+                            <div class="col-6"><label class="form-label">最大 Token 数</label><input type="number"
+                                    class="form-control" name="maxTokens" value="4000"></div>
+                            <div class="col-6"><label class="form-label">温度参数 (Temp)</label><input type="number"
+                                    class="form-control" name="temperature" value="0.7" step="0.1" min="0" max="2">
                             </div>
                         </div>
-                        <div class="form-check mt-3"><input class="form-check-input" type="checkbox" name="active" checked> <label
-                                class="form-check-label">立即激活此模型</label></div>
-                        </form>
-                        </div>
-                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button
-                        type="button" class="btn btn-primary" id="save-model-btn">保存并启用</button></div>
+                        <div class="form-check mt-3"><input class="form-check-input" type="checkbox" name="active"
+                                checked> <label class="form-check-label">立即激活此模型</label></div>
+                    </form>
                 </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary"
+                        data-bs-dismiss="modal">取消</button><button type="button" class="btn btn-primary"
+                        id="save-model-btn">保存并启用</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新闻详情弹窗 -->
+    <div class="modal fade" id="newsDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="newsDetailTitle">新闻详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                </div>
-                
-                <!-- 新闻详情弹窗 -->
-                <div class="modal fade" id="newsDetailModal" tabindex="-1">
-                    <div class="modal-dialog modal-lg">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title fw-bold" id="newsDetailTitle">新闻详情</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body p-4">
-                                <p class="small text-muted" id="newsDetailSource"></p>
-                                <div id="newsDetailContent" class="mb-4" style="font-size: 1.05rem; line-height: 1.8;"></div>
-                                <a href="#" target="_blank" id="newsDetailUrl" class="btn btn-outline-primary btn-sm mb-4">🔗 访问原网页</a>
-                                <hr>
-                                <div class="d-flex justify-content-between align-items-center mb-3">
-                                    <h6 class="fw-bold mb-0 text-success"><i class="bi bi-robot"></i> AI 新闻影响面深度解读</h6>
-                                    <button class="btn btn-success btn-sm" id="analyzeNewsBtn">生成利空/利好剖析</button>
-                                </div>
-                                <div id="newsAnalysisResult" class="bg-light p-3 rounded" style="display:none; min-height: 80px;"></div>
-                            </div>
-                        </div>
+                <div class="modal-body p-4">
+                    <p class="small text-muted" id="newsDetailSource"></p>
+                    <div id="newsDetailContent" class="mb-4" style="font-size: 1.05rem; line-height: 1.8;"></div>
+                    <a href="#" target="_blank" id="newsDetailUrl" class="btn btn-outline-primary btn-sm mb-4">🔗
+                        访问原网页</a>
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold mb-0 text-success"><i class="bi bi-robot"></i> AI 新闻影响面深度解读</h6>
+                        <button class="btn btn-success btn-sm" id="analyzeNewsBtn">生成利空/利好剖析</button>
+                    </div>
+                    <div id="newsAnalysisResult" class="bg-light p-3 rounded" style="display:none; min-height: 80px;">
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

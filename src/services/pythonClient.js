@@ -125,12 +125,22 @@ async function getMarketNews(query = "财经股票", limit = 20) {
     throw new Error('Failed to get market news from python');
 }
 
+/**
+ * Get MA Crossover status (5/20) from Python service
+ */
+async function getMACross(symbol) {
+    const res = await axios.post(`${PYTHON_SERVICE_URL}/api/stock/ma_cross`, { symbol }, { timeout: 30000 });
+    if (res.data?.success) return res.data.data;
+    return { cross: null };
+}
+
 module.exports = {
     isPythonServiceAvailable,
     runAgentChat,
     runAgentChatStream,
     getStockPrice,
     getMarketNews,
+    getMACross,
     PYTHON_SERVICE_URL,
 };
 

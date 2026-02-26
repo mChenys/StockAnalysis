@@ -402,3 +402,37 @@ def get_market_news(query: str = "财经股票", limit: int = 20) -> List[Dict[s
         logger.error(f"Error fetching news: {e}")
         return []
 
+def check_ma_cross(symbol: str) -> Dict[str, Any]:
+    """Check for 5/20 MA Golden Cross or Death Cross."""
+    try:
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period="60d") # Enough for 20MA
+        if len(df) < 21:
+            return {"cross": None, "ma5": 0, "ma20": 0}
+        
+        # Ensure we have clean closing prices
+        prices = df['Close']
+        ma5 = prices.rolling(window=5).mean()
+        ma20 = prices.rolling(window=20).mean()
+        
+        last_ma5 = ma5.iloc[-1]
+        last_ma20 = ma20.iloc[-1]
+        prev_ma5 = ma5.iloc[-2]
+        prev_ma20 = ma20.iloc[-2]
+        
+        cross = None
+        if prev_ma5 <= prev_ma20 and last_ma5 > last_ma20:
+            cross = "golden_cross"
+        elif prev_ma5 >= prev_ma20 and last_ma5 < last_ma20:
+            cross = "death_cross"
+            
+        return {
+            "cross": cross,
+            "ma5": float(last_ma5),
+            "ma20": float(last_ma20)
+        }
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"MA Cross error for {symbol}: {e}")
+        return {"cross": None}
+
