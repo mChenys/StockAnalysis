@@ -887,11 +887,49 @@
             color: var(--accent-green);
         }
 
-        /* ====== Stream Status ====== */
-        .stream-status {
+        /* ====== Message Actions ====== */
+        .message-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .message:hover .message-actions {
+            opacity: 1;
+        }
+
+        .favorite-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
             color: var(--text-muted);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+            position: relative;
+            z-index: 10;
+        }
+
+        .favorite-btn:hover {
+            border-color: var(--accent-yellow);
+            color: var(--accent-yellow);
+            background: rgba(245, 158, 11, 0.05);
+        }
+
+        .favorite-btn.active {
+            color: var(--accent-yellow);
+            border-color: var(--accent-yellow);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .favorite-btn i {
             font-size: 13px;
-            animation: fadeIn 0.3s ease;
         }
     </style>
 </head>
@@ -993,6 +1031,105 @@
         const newChatBtn = document.getElementById('new-chat-btn');
         const clearChatBtn = document.getElementById('clear-chat-btn');
         const suggestionsGrid = document.getElementById('suggestions-grid');
+
+                        // =============== Global Utilities ===============
+                        window.toggleFavorite = async function (btn) {
+                            console.log('toggleFavorite called', btn);
+                            const messageEl = btn.closest('.message');
+                            const content = messageEl.querySelector('.message-body').innerText;
+
+                            // 智能提取标题
+                            let displayTitle = '';
+
+                            // 1. 尝试获取用户的问题作为背景
+                            const userMsgEl = messageEl.previousElementSibling;
+                            if (userMsgEl && userMsgEl.classList.contains('user')) {
+                                const question = userMsgEl.querySelector('.message-body').innerText.trim();
+                                if (question.length < 50) {
+                                    displayTitle = `关于 "${question}" 的深度研报`;
+                                } else {
+                                    displayTitle = `关于 "${question.substring(0, 30)}..." 的深度研报`;
+                                }
+                            }
+
+                            // 2. 如果没找到用户问题或标题太短，从 AI 回复中提取
+                            if (!displayTitle) {
+                                const lines = content.split('\n').filter(l => l.trim().length > 0);
+                                // 寻找可能的股票代码或标志性开头
+                                const stockMatch = content.match(/([A-Z0-9]{2,6})\s*([\(（])?.*?([\)）])?\s*(?:价格|走势|分析)/i);
+                                if (stockMatch) {
+                                    displayTitle = `${stockMatch[1]} 股票智能研判报告`;
+                                } else {
+                                    displayTitle = lines[0].substring(0, 40).replace(/^[0-9\.、\s]+/, '') + '...';
+                                }
+                            }
+
+                            // 3. 尝试提取股票代码作为标识符
+                            let symbol = 'AGENT';
+                            const symbolRegex = /\$?([A-Z]{1,5})/g;
+                            const questionText = userMsgEl ? userMsgEl.querySelector('.message-body').innerText : '';
+                            const combinedText = questionText + ' ' + content.substring(0, 100);
+                            const symbolMatches = combinedText.match(symbolRegex);
+                            if (symbolMatches && symbolMatches.length > 0) {
+                                // 过滤掉一些常见的非股票词汇
+                                const commonWords = ['AI', 'US', 'HK', 'USD', 'CNY', 'CEO', 'PE', 'EPS', 'NAV'];
+                                const found = symbolMatches.map(s => s.replace('$', '')).find(s => !commonWords.includes(s));
+                                if (found) symbol = found;
+                            }
+
+                            const originalHtml = btn.innerHTML;
+                            btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:12px; height:12px;"></span> 处理中...';
+                            btn.disabled = true;
+
+                            try {
+                                const res = await apiFetch('/api/favorites', {
+                                    method: 'POST',
+                                    body: JSON.stringify({
+                                        type: 'agent_chat',
+                                        symbol: symbol,
+                                        title: displayTitle,
+                                        content: content,
+                                        analysisData: {
+                                            sessionId: currentSessionId,
+                                            timestamp: new Date().toISOString()
+                                        }
+                                    })
+                                });
+
+                                if (res.success) {
+                                    btn.innerHTML = '<i class="bi bi-star-fill"></i> 已收藏';
+                                    btn.classList.add('active');
+                                } else {
+                                    btn.innerHTML = originalHtml;
+                                    btn.disabled = false;
+                                    showNotification(res.message || '收藏失败');
+                                }
+                            } catch (e) {
+                                console.error('Favorite error:', e);
+                                btn.innerHTML = originalHtml;
+                                btn.disabled = false;
+                                showNotification('请求失败');
+                            }
+                        };
+
+                        window.copyToClipboard = function (btn) {
+                            console.log('copyToClipboard called', btn);
+                            const content = btn.closest('.message-content').querySelector('.message-body').innerText;
+                            if (navigator.clipboard) {
+                                navigator.clipboard.writeText(content).then(() => {
+                                    const originalHtml = btn.innerHTML;
+                                    btn.innerHTML = '<i class="bi bi-check-lg"></i> 已复制';
+                                    setTimeout(() => {
+                                        btn.innerHTML = originalHtml;
+                                    }, 2000);
+                                }).catch(err => {
+                                    console.error('Clipboard error:', err);
+                                    showNotification('复制失败');
+                                });
+                            } else {
+                                showNotification('浏览器不支持剪贴板API');
+                            }
+                        };
 
         // =============== Init ===============
         document.addEventListener('DOMContentLoaded', async () => {
@@ -1131,12 +1268,28 @@
                 });
             }
 
-            // Reasoning Header Event Delegation
+            // Reasoning Header & Message Actions Event Delegation
             if (messagesArea) {
                 messagesArea.addEventListener('click', (e) => {
+                    // Reasoning toggle
                     const reasoningHeader = e.target.closest('.reasoning-header');
                     if (reasoningHeader) {
                         reasoningHeader.parentElement.classList.toggle('collapsed');
+                        return;
+                    }
+
+                    // Favorite button
+                    const favBtn = e.target.closest('.favorite-btn-trigger');
+                    if (favBtn) {
+                        toggleFavorite(favBtn);
+                        return;
+                    }
+
+                    // Copy button
+                    const copyBtn = e.target.closest('.copy-btn-trigger');
+                    if (copyBtn) {
+                        copyToClipboard(copyBtn);
+                        return;
                     }
                 });
             }
@@ -1347,6 +1500,10 @@
                     }
                 }
 
+                // Show actions after streaming
+                const actions = assistantMsg.querySelector('.message-actions');
+                if (actions) actions.style.display = 'flex';
+
                 // Refresh history list after streaming
                 loadSessions();
 
@@ -1379,12 +1536,21 @@
                 <div class="message-body">
                     <div class="thinking-dots"><span></span><span></span><span></span></div>
                 </div>
+                <div class="message-actions" style="display: none;">
+                    <button class="favorite-btn favorite-btn-trigger" title="收藏到我的收藏夹">
+                        <i class="bi bi-star"></i> 收藏分析
+                    </button>
+                    <button class="favorite-btn copy-btn-trigger" title="复制到剪贴板">
+                        <i class="bi bi-copy"></i> 复制
+                    </button>
+                </div>
             </div>
         `;
             messagesArea.appendChild(div);
             scrollToBottom();
             return div;
         }
+
 
         function createToolsContainer() {
             const div = document.createElement('div');
@@ -1525,11 +1691,26 @@
                 elapsedHtml = `<div class="elapsed-badge"><i class="bi bi-clock"></i> ${sec}s</div>`;
             }
 
+            let actionsHtml = '';
+            if (role === 'assistant') {
+                actionsHtml = `
+                <div class="message-actions">
+                    <button class="favorite-btn favorite-btn-trigger">
+                        <i class="bi bi-star"></i> 收藏分析
+                    </button>
+                    <button class="favorite-btn copy-btn-trigger">
+                        <i class="bi bi-copy"></i> 复制
+                    </button>
+                </div>
+                `;
+            }
+
             messageDiv.innerHTML = `
             <div class="message-avatar">${avatar}</div>
             <div class="message-content">
                 <div class="message-sender">${sender}</div>
                 <div class="message-body">${bodyHtml}</div>
+                ${actionsHtml}
                 ${elapsedHtml}
             </div>
         `;

@@ -136,10 +136,12 @@ function setupGlobalEventListeners() {
             }
         }
 
-        const action = target.dataset.action;
-        const id = target.dataset.id;
-        const modelAction = target.dataset.modelAction;
-        const modelName = target.dataset.modelName;
+        const actionBtn = target.closest('[data-action]');
+        const action = actionBtn ? actionBtn.dataset.action : null;
+        const id = actionBtn ? actionBtn.dataset.id : (target.closest('[data-id]') ? target.closest('[data-id]').dataset.id : null);
+        const modelBtn = target.closest('[data-model-action]');
+        const modelAction = modelBtn ? modelBtn.dataset.modelAction : null;
+        const modelName = modelBtn ? modelBtn.dataset.modelName : null;
 
         if (modelAction === 'test') testModel(modelName);
         if (modelAction === 'delete') deleteModel(modelName);
@@ -452,6 +454,7 @@ async function loadFavorites() {
             const stocks = res.data.filter(f => !f.type || f.type === 'stock_analysis');
             const radars = res.data.filter(f => f.type === 'trendradar');
             const newsInts = res.data.filter(f => f.type === 'news_interpretation');
+            const agentChats = res.data.filter(f => f.type === 'agent_chat');
 
             let html = '';
 
@@ -517,6 +520,26 @@ async function loadFavorites() {
                     </div>
                 `).join('');
             }
+            if (agentChats.length > 0) {
+                html += `<div class="col-12 mb-3 mt-4"><h5 class="fw-bold text-dark border-start border-4 border-success ps-2" style="border-color: #8b5cf6 !important;">AI 股票分析 Agent (${agentChats.length})</h5></div>`;
+                html += agentChats.map(f => `
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card card-custom h-100 shadow-sm border-0" style="background: linear-gradient(135deg, #ffffff 0%, #f9f5ff 100%);">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="badge" style="background-color: #8b5cf6; color: white; font-size: 0.65rem;">Agent 分析</span>
+                                    <span class="text-muted small" style="font-size: 0.7rem;">${new Date(f.createdAt).toLocaleString()}</span>
+                                </div>
+                                <h6 class="card-title fw-bold mb-3" style="font-size: 0.95rem; color: #5b21b6;">${f.title}</h6>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm text-white flex-grow-1" style="background-color: #8b5cf6;" data-action="view-favorite" data-id="${f._id}"><i class="bi bi-robot"></i> 查看对话结果</button>
+                                    <button class="btn btn-sm btn-outline-danger" data-action="delete-favorite" data-id="${f._id}"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
 
             container.innerHTML = html;
         }
@@ -551,6 +574,28 @@ async function viewFavorite(id) {
                     <div class="small text-muted">数据源: ${raw.source || '未知'} | <a href="${raw.newsUrl}" target="_blank" class="text-decoration-none">访问原文 🔗</a></div>
                 </div>`;
                 document.getElementById('fav-detail-content').innerHTML = headerHtml + `<div class="ai-report-body px-1">${parseMarkdownToHtml(fav.content)}</div>`;
+            } else if (fav.type === 'agent_chat') {
+                document.getElementById('fav-detail-content').innerHTML = `
+                    <div class="p-3 mb-4 rounded border bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge" style="background-color: #8b5cf6; color: white;">AI Agent 智能研判</span>
+                                <small class="text-muted ms-2">分析时间: ${new Date(fav.createdAt).toLocaleString()}</small>
+                            </div>
+                            <div class="small">
+                                <span class="text-muted">会话标的: </span><span class="badge bg-outline-secondary text-dark border">${fav.symbol}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4 border rounded bg-white shadow-sm agent-chat-body" style="line-height: 1.8;">
+                        ${parseMarkdownToHtml(fav.content)}
+                    </div>
+                    <style>
+                        .agent-chat-body h1, .agent-chat-body h2, .agent-chat-body h3 { color: #8b5cf6; margin-top: 1.5rem; margin-bottom: 1rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; font-size: 1.1rem; }
+                        .agent-chat-body strong { color: #5b21b6; }
+                        .agent-chat-body blockquote { border-left: 4px solid #8b5cf6; padding-left: 1rem; color: #666; font-style: italic; }
+                    </style>
+                `;
             } else {
                 const raw = fav.analysisData || {};
                 let headerHtml = `<div class="p-3 mb-4 rounded border bg-light d-flex justify-content-between align-items-center">
