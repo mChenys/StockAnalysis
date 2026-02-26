@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const FavoriteSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    type: { type: String, default: 'stock_analysis' }, // 'stock_analysis' or 'trendradar'
     symbol: { type: String, required: true },
     title: { type: String, required: true },
     content: { type: String, required: true }, // 存储 HTML 快照
@@ -12,6 +13,7 @@ const FavoriteSchema = new mongoose.Schema({
 class InMemoryFavorite {
     constructor(data) {
         Object.assign(this, data);
+        this.type = data.type || 'stock_analysis';
         this._id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
         this.createdAt = new Date();
     }

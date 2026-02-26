@@ -386,8 +386,152 @@ async function refreshTrendRadar() {
 
 async function saveToFavorites() {
     if (!lastAnalysisResult) return;
-    const res = await apiFetch('/api/favorites', { method: 'POST', body: JSON.stringify({ symbol: lastAnalysisResult.symbol, title: `${lastAnalysisResult.symbol} 全维研报`, content: lastAnalysisResult.analysis, analysisData: lastAnalysisResult.rawData }) });
+    const res = await apiFetch('/api/favorites', {
+        method: 'POST',
+        body: JSON.stringify({
+            type: 'stock_analysis',
+            symbol: lastAnalysisResult.symbol,
+            title: `${lastAnalysisResult.symbol} 全维研报`,
+            content: lastAnalysisResult.analysis,
+            analysisData: lastAnalysisResult.rawData
+        })
+    });
     if (res.success) { showNotification('成功', '研报已存入收藏夹', 'success'); document.getElementById('save-to-favorites-btn').classList.add('d-none'); }
+}
+
+async function loadFavorites() {
+    const container = document.getElementById('favorites-list-container');
+    if (!container) return;
+    container.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>';
+    try {
+        const res = await apiFetch('/api/favorites');
+        if (res.success && res.data) {
+            if (res.data.length === 0) {
+                container.innerHTML = '<div class="col-12 text-center py-5 text-muted"><i class="bi bi-star fs-1 d-block mb-3 opacity-25"></i>暂无收藏内容</div>';
+                return;
+            }
+
+            // 分组逻辑
+            const stocks = res.data.filter(f => !f.type || f.type === 'stock_analysis');
+            const radars = res.data.filter(f => f.type === 'trendradar');
+            const newsInts = res.data.filter(f => f.type === 'news_interpretation');
+
+            let html = '';
+
+            if (stocks.length > 0) {
+                html += `<div class="col-12 mb-3 mt-2"><h5 class="fw-bold text-dark border-start border-4 border-primary ps-2">AI 智能研报 (${stocks.length})</h5></div>`;
+                html += stocks.map(f => `
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card card-custom h-100 shadow-sm border-0">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="fw-bold text-primary mb-0">${f.symbol}</h6>
+                                    <span class="badge bg-light text-muted small" style="font-size: 0.7rem;">${new Date(f.createdAt).toLocaleString()}</span>
+                                </div>
+                                <h6 class="card-title fw-bold mb-3" style="font-size: 0.95rem;">${f.title}</h6>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-primary flex-grow-1" data-action="view-favorite" data-id="${f._id}"><i class="bi bi-eye"></i> 查看</button>
+                                    <button class="btn btn-sm btn-outline-danger" data-action="delete-favorite" data-id="${f._id}"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            if (newsInts.length > 0) {
+                html += `<div class="col-12 mb-3 mt-4"><h5 class="fw-bold text-dark border-start border-4 border-warning ps-2">财金新闻解读 (${newsInts.length})</h5></div>`;
+                html += newsInts.map(f => `
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card card-custom h-100 shadow-sm border-0" style="background: linear-gradient(135deg, #ffffff 0%, #fffdf5 100%);">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">新闻分析</span>
+                                    <span class="text-muted small" style="font-size: 0.7rem;">${new Date(f.createdAt).toLocaleString()}</span>
+                                </div>
+                                <h6 class="card-title fw-bold mb-3" style="font-size: 0.95rem; color: #856404;">${f.title}</h6>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-warning flex-grow-1" data-action="view-favorite" data-id="${f._id}"><i class="bi bi-journal-text"></i> 阅读解读</button>
+                                    <button class="btn btn-sm btn-outline-danger" data-action="delete-favorite" data-id="${f._id}"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            if (radars.length > 0) {
+                html += `<div class="col-12 mb-3 mt-4"><h5 class="fw-bold text-dark border-start border-4 border-info ps-2">全网热点雷达回放 (${radars.length})</h5></div>`;
+                html += radars.map(f => `
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card card-custom h-100 shadow-sm border-0" style="background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="badge bg-info text-white" style="font-size: 0.65rem;">热点雷达</span>
+                                    <span class="text-muted small" style="font-size: 0.7rem;">${new Date(f.createdAt).toLocaleString()}</span>
+                                </div>
+                                <h6 class="card-title fw-bold mb-3" style="font-size: 0.95rem;">${f.title}</h6>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-info text-white flex-grow-1" data-action="view-favorite" data-id="${f._id}"><i class="bi bi-play-circle"></i> 回看报告</button>
+                                    <button class="btn btn-sm btn-outline-danger" data-action="delete-favorite" data-id="${f._id}"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            container.innerHTML = html;
+        }
+    } catch (e) {
+        container.innerHTML = `<div class="alert alert-danger">加载失败: ${e.message}</div>`;
+    }
+}
+
+async function viewFavorite(id) {
+    try {
+        const res = await apiFetch('/api/favorites');
+        const fav = res.data.find(f => f._id === id);
+        if (fav) {
+            document.getElementById('favorites-list-view').style.display = 'none';
+            document.getElementById('favorites-detail-view').style.display = 'block';
+            document.getElementById('fav-detail-title').textContent = fav.title;
+
+            if (fav.type === 'trendradar') {
+                document.getElementById('fav-detail-content').innerHTML = `<div class="p-2 bg-light border-bottom mb-3 d-flex justify-content-between align-items-center">
+                    <span class="text-muted small"><i class="bi bi-clock-history"></i> 历史快照时间: ${new Date(fav.createdAt).toLocaleString()}</span>
+                    <span class="badge bg-info">全网热点雷达回放</span>
+                </div>
+                <iframe srcdoc="${fav.content.replace(/"/g, '&quot;')}" style="width:100%; height:75vh; border:none; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);"></iframe>`;
+            } else if (fav.type === 'news_interpretation') {
+                const raw = fav.analysisData || {};
+                let headerHtml = `<div class="p-3 mb-4 rounded border bg-light">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="badge bg-warning text-dark">财金新闻深度解读</span>
+                        <small class="text-muted">收藏于: ${new Date(fav.createdAt).toLocaleString()}</small>
+                    </div>
+                    <h5 class="fw-bold mb-1">${raw.originalTitle || fav.symbol}</h5>
+                    <div class="small text-muted">数据源: ${raw.source || '未知'} | <a href="${raw.newsUrl}" target="_blank" class="text-decoration-none">访问原文 🔗</a></div>
+                </div>`;
+                document.getElementById('fav-detail-content').innerHTML = headerHtml + `<div class="ai-report-body px-1">${parseMarkdownToHtml(fav.content)}</div>`;
+            } else {
+                const raw = fav.analysisData || {};
+                let headerHtml = `<div class="p-3 mb-4 rounded border bg-light d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-0 fw-bold">${fav.symbol} <span class="badge bg-dark ms-2" style="font-size: 12px;">历史存档</span></h4>
+                        <small class="text-muted">收藏于: ${new Date(fav.createdAt).toLocaleString()}</small>
+                    </div>
+                    <div class="text-end">
+                        <span class="h4 mb-0 fw-bold">${raw.currentPrice || 'N/A'}</span>
+                        <span class="ms-2 fw-bold ${parseFloat(raw.changePercent) >= 0 ? 'text-success' : 'text-danger'}">${raw.changePercent || '0.00'}%</span>
+                    </div>
+                </div>`;
+                document.getElementById('fav-detail-content').innerHTML = headerHtml + `<div class="ai-report-body px-1">${parseMarkdownToHtml(fav.content)}</div>`;
+            }
+        }
+    } catch (e) {
+        showNotification('查看失败', e.message, 'danger');
+    }
 }
 async function testModel(name) { try { const res = await apiFetch(`/api/models/${name}/test`, { method: 'POST' }); showNotification('成功', `响应正常`, 'success'); } catch (e) { showNotification('失败', e.message, 'danger'); } }
 async function deleteModel(name) { if (confirm('确定删除此模型？')) { await apiFetch(`/api/models/${name}`, { method: 'DELETE' }); loadModels(); } }
@@ -516,7 +660,83 @@ async function analyzeNewsImpact(item) {
 
         const data = await res.json();
         if (data.success && data.response) {
-            resContainer.innerHTML = parseMarkdownToHtml(data.response);
+            let html = parseMarkdownToHtml(data.response);
+
+            // 创建收藏按钮
+            const favBtn = document.createElement('button');
+            favBtn.className = 'btn btn-xs btn-outline-warning fw-bold ms-2';
+            favBtn.style.cssText = 'font-size: 0.75rem; padding: 2px 10px; border-radius: 20px; transition: all 0.3s; vertical-align: middle;';
+            favBtn.innerHTML = '<i class="bi bi-star"></i> 收藏';
+
+            const handleFavorite = async (btn) => {
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 收藏中...';
+                btn.disabled = true;
+                try {
+                    let favTitle = item.title;
+                    const match = data.response.match(/结论：【(.*?)】/);
+                    if (match) favTitle = `深度解读: ${match[1]}`;
+
+                    const favRes = await apiFetch('/api/favorites', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            type: 'news_interpretation',
+                            symbol: 'NEWS',
+                            title: favTitle,
+                            content: data.response,
+                            analysisData: { source: item.sourceId, newsUrl: item.url, originalTitle: item.title, timestamp: new Date().toISOString() }
+                        })
+                    });
+                    if (favRes.success) {
+                        showNotification('收藏成功', '已存入收藏夹', 'success');
+                        btn.innerHTML = '<i class="bi bi-check-lg"></i> 已收藏';
+                        btn.className = 'btn btn-xs btn-success fw-bold ms-2';
+                        btn.disabled = true;
+                    } else {
+                        throw new Error(favRes.message);
+                    }
+                } catch (err) {
+                    showNotification('收藏失败', err.message, 'danger');
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            };
+            favBtn.onclick = () => handleFavorite(favBtn);
+
+            // 直接在容器中渲染
+            resContainer.innerHTML = html;
+
+            let injected = false;
+            // 查找包含“结论”的段落或首行
+            const paragraphs = resContainer.querySelectorAll('div, p, h6, strong, li');
+            for (let p of paragraphs) {
+                const text = p.innerText.trim();
+                // 确保是直接包含“结论：”文字的最小容器
+                if (text.startsWith('结论：') || text.includes('结论：')) {
+                    p.style.display = 'flex';
+                    p.style.alignItems = 'center';
+                    p.style.justifyContent = 'space-between';
+                    p.style.flexWrap = 'nowrap';
+                    p.style.width = '100%';
+                    p.style.gap = '10px';
+
+                    // 将文字包装，确保按钮靠右
+                    const textSpan = document.createElement('span');
+                    textSpan.innerHTML = p.innerHTML;
+                    p.innerHTML = '';
+                    p.appendChild(textSpan);
+                    p.appendChild(favBtn);
+                    injected = true;
+                    break;
+                }
+            }
+
+            if (!injected) {
+                const topDiv = document.createElement('div');
+                topDiv.className = 'text-end mb-2';
+                topDiv.appendChild(favBtn);
+                resContainer.insertBefore(topDiv, resContainer.firstChild);
+            }
         } else {
             resContainer.innerHTML = `<div class="text-danger">分析失败: ${data.message || '未知错误'}</div>`;
         }
@@ -697,6 +917,30 @@ function initializeSocket() {
         // 全维研报实时更新逻辑（可选）
         if (lastAnalysisResult && lastAnalysisResult.symbol === data.symbol) {
             console.log('Received fresh analysis for', data.symbol);
+        }
+    });
+
+    // 监听来自 iframe 的消息 (如 TrendRadar 的收藏请求)
+    window.addEventListener('message', async (event) => {
+        if (event.data && event.data.action === 'SAVE_TO_FAVORITES') {
+            const { type, title, content } = event.data;
+            try {
+                const res = await apiFetch('/api/favorites', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        type,
+                        symbol: 'TREND', // 默认标识
+                        title,
+                        content,
+                        analysisData: {}
+                    })
+                });
+                if (res.success) {
+                    showNotification('收藏成功', '该热点雷达报告已存入您的收藏夹', 'success');
+                }
+            } catch (err) {
+                showNotification('收藏失败', err.message, 'danger');
+            }
         }
     });
 }
