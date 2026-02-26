@@ -56,6 +56,7 @@ async function createApp() {
         app.use('/api/users', require('./routes/users'));
         app.use('/api/news', require('./routes/news'));
         app.use('/api/agent', require('./routes/agent'));
+        app.use('/api/tasks', require('./routes/tasks'));
         app.use('/api', require('./routes/api'));
 
         app.get('/', (req, res) => {
@@ -70,6 +71,7 @@ async function createApp() {
         // 如果不是测试环境，启动调度器
         if (process.env.NODE_ENV !== 'test') {
             scheduler.start();
+            require('./services/cronManager').init();
         }
 
         return { app, server, database, scheduler };

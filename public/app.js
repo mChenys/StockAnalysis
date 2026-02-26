@@ -163,6 +163,19 @@ function setupGlobalEventListeners() {
             testPushConfig();
         }
 
+        if (target.id === 'create-task-btn' || target.closest('#create-task-btn')) {
+            document.getElementById('taskFormTitle').innerHTML = '<i class="bi bi-pencil-square text-success me-2"></i>配置新任务';
+            document.getElementById('taskForm').reset();
+            document.getElementById('task_id').value = '';
+            document.getElementById('taskFormCard').style.display = 'block';
+            window.scrollTo({ top: document.getElementById('taskFormCard').offsetTop, behavior: 'smooth' });
+        }
+
+        if (target.id === 'close-task-form-btn' || target.closest('#close-task-form-btn') ||
+            target.id === 'cancel-task-form-btn' || target.closest('#cancel-task-form-btn')) {
+            document.getElementById('taskFormCard').style.display = 'none';
+        }
+
         if (target.id === 'fetch-nvidia-models-btn') fetchNvidiaModels();
         if (target.matches('.add-nvidia-model-btn')) {
             const mId = target.dataset.nvidiaModelId;
@@ -657,16 +670,27 @@ function initializeSocket() {
         if (data.type === 'completed') {
             showNotification('成功', '全网热点 AI 分析报告已更新', 'success');
             const iframe = document.getElementById('trendradar-frame');
-            if (iframe) iframe.src = iframe.src;
+            if (iframe) {
+                const url = new URL(iframe.src);
+                url.searchParams.set('t', Date.now());
+                iframe.src = url.toString();
+            }
             if (btn) btn.disabled = false;
             if (spinner) spinner.classList.add('d-none');
+            if (window.loadTasks) window.loadTasks(); // 立即刷新列表状态图标
         } else if (data.type === 'progress') {
             showNotification('进度', data.message, 'info');
         } else if (data.type === 'error') {
             showNotification('失败', data.message, 'danger');
             if (btn) btn.disabled = false;
             if (spinner) spinner.classList.add('d-none');
+            if (window.loadTasks) window.loadTasks(); // 立即刷新列表状态图标
         }
+    });
+
+    socket.on('task_status_updated', (data) => {
+        console.log('Task status update received:', data);
+        if (window.loadTasks) window.loadTasks(); // 任何任务状态改变（如开始运行/完成），都刷新列表
     });
 
     socket.on('analysis_result', (data) => {
@@ -755,3 +779,312 @@ async function testPushConfig() {
     }
 }
 window.testPushConfig = testPushConfig;
+
+// ================= 定时任务调度管理逻辑 =================
+function formatCronHumanReadable(cron) {
+    if (!cron) return '<span class="text-muted">未设置</span>';
+
+    // 匹配 每天 格式: "mm HH * * *" (针对 node-cron 的 5 位格式)
+    const dailyMatch = /^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+\*$/.exec(cron.trim());
+    if (dailyMatch) {
+        return `<span class="badge bg-light text-dark border"><i class="bi bi-alarm me-1"></i>${dailyMatch[2].padStart(2, '0')}:${dailyMatch[1].padStart(2, '0')} (每天)</span>`;
+    }
+
+    // 匹配 间隔分钟 格式: "*/N * * * *"
+    const intervalMatch = /^\*\/(\d{1,2})\s+\*\s+\*\s+\*\s+\*$/.exec(cron.trim());
+    if (intervalMatch) {
+        return `<span class="badge bg-light text-dark border"><i class="bi bi-arrow-repeat me-1"></i>每 ${intervalMatch[1]} 分钟 (巡航)</span>`;
+    }
+
+    return `<code class="bg-light p-1 rounded border" style="font-size: 0.85rem;">${cron}</code>`;
+}
+
+async function loadTasks() {
+    try {
+        const res = await apiFetch('/api/tasks');
+        const tbody = document.getElementById('tasks-table-body');
+        if (!tbody) return;
+
+        if (res.success && res.data.length > 0) {
+            tbody.innerHTML = res.data.map(t => {
+                const statusBadge = t.active
+                    ? '<span class="badge bg-success-soft text-success border border-success px-2 py-1"><i class="bi bi-play-circle-fill me-1"></i>运行中</span>'
+                    : '<span class="badge bg-light text-muted border border-secondary px-2 py-1"><i class="bi bi-pause-circle-fill me-1"></i>已停止</span>';
+
+                let lastStatusBadge = '';
+                if (t.lastRunStatus === 'success') {
+                    lastStatusBadge = '<span class="badge bg-success rounded-circle p-1" title="最后执行成功"><i class="bi bi-check-lg" style="font-size: 0.75rem;"></i></span>';
+                } else if (t.lastRunStatus === 'error') {
+                    lastStatusBadge = '<span class="badge bg-danger rounded-circle p-1" title="最近执行失败"><i class="bi bi-exclamation-triangle" style="font-size: 0.75rem;"></i></span>';
+                } else if (t.lastRunStatus === 'running') {
+                    lastStatusBadge = '<span class="spinner-border spinner-border-sm text-primary" role="status"></span>';
+                }
+
+                return `
+                <tr data-task-id="${t._id}">
+                    <td class="ps-3 py-3">
+                        <div class="fw-bold text-dark mb-1">${t.name}</div>
+                        <div class="small text-muted" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${t.description || '无描述'}</div>
+                    </td>
+                    <td class="py-3">
+                        <span class="badge bg-indigo-soft text-indigo border border-indigo px-2 py-1" style="background: #f3f0ff; color: #5f3dc4; border-color: #d0bfff;">
+                            ${t.type === 'trendradar_report' ? '资讯雷达巡航' : t.type}
+                        </span>
+                    </td>
+                    <td class="py-3">
+                        ${formatCronHumanReadable(t.cronExpression)}
+                    </td>
+                    <td class="py-3 text-center">
+                        <div class="form-check form-switch d-flex justify-content-center align-items-center">
+                            <input class="form-check-input me-2 task-active-toggle" type="checkbox" data-task-id="${t._id}" ${t.active ? 'checked' : ''}>
+                            ${statusBadge}
+                        </div>
+                    </td>
+                    <td class="py-3 text-nowrap">
+                        <div class="d-flex align-items-center">
+                            <span class="me-2">${lastStatusBadge}</span>
+                            <div>
+                                <div class="small fw-bold text-secondary">${t.lastRunAt ? new Date(t.lastRunAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '从未'}</div>
+                                <div class="small text-muted" style="font-size: 0.7rem;">${t.lastRunAt ? new Date(t.lastRunAt).toLocaleDateString() : '待触发'}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="pe-3 py-3 text-end">
+                        <div class="btn-group shadow-sm border rounded">
+                            <button class="btn btn-sm btn-white border-0 task-run-btn" data-task-id="${t._id}" title="立即执行一次"><i class="bi bi-play-btn text-primary"></i></button>
+                            <button class="btn btn-sm btn-white border-0 task-edit-btn" data-task-id="${t._id}" title="编辑配置"><i class="bi bi-gear text-secondary"></i></button>
+                            <button class="btn btn-sm btn-white border-0 task-delete-btn" data-task-id="${t._id}" title="删除任务"><i class="bi bi-trash3 text-danger"></i></button>
+                        </div>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted"><i class="bi bi-inbox fs-1 d-block mb-3 opacity-25"></i>目前还没有配置定时任务，点击右上角创建一个。</td></tr>';
+        }
+    } catch (error) {
+        showNotification('加载失败', '无法从服务器同步任务列表: ' + error.message, 'danger');
+    }
+}
+
+async function runTaskManual(taskId) {
+    if (!confirm('确定要立即在后台试运行此任务吗？这可能需要几分钟的时间。')) return;
+    try {
+        const res = await apiFetch(`/api/tasks/${taskId}/run`, { method: 'POST' });
+        if (res.success) {
+            showNotification('任务已触发', res.message, 'success');
+            setTimeout(loadTasks, 2000); // 刷新一下状态
+        } else {
+            showNotification('触发失败', res.message, 'danger');
+        }
+    } catch (e) {
+        showNotification('请求失败', e.message, 'danger');
+    }
+}
+
+async function toggleTaskActive(taskId, active) {
+    try {
+        const res = await apiFetch(`/api/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify({ active }) });
+        if (res.success) {
+            showNotification('更新成功', active ? '任务已激活调度' : '任务已停止调度', 'success');
+            loadTasks();
+        } else {
+            showNotification('更新失败', res.message, 'danger');
+            loadTasks(); // 恢复状态
+        }
+    } catch (e) {
+        showNotification('请求失败', e.message, 'danger');
+        loadTasks(); // 恢复状态
+    }
+}
+
+async function deleteTask(taskId) {
+    if (!confirm('确定彻底删除该定时任务吗？不可恢复。')) return;
+    try {
+        const res = await apiFetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+        if (res.success) {
+            showNotification('删除成功', '任务已被删除', 'success');
+            loadTasks();
+        } else {
+            showNotification('删除失败', res.message, 'danger');
+        }
+    } catch (e) {
+        showNotification('请求失败', e.message, 'danger');
+    }
+}
+
+async function editTask(taskId) {
+    try {
+        const res = await apiFetch('/api/tasks');
+        if (res.success) {
+            const task = res.data.find(t => t._id === taskId);
+            if (task) {
+                document.getElementById('task_id').value = task._id;
+                document.getElementById('task_name').value = task.name;
+                document.getElementById('task_type').value = task.type;
+                document.getElementById('task_active').checked = task.active;
+
+                const cronEx = task.cronExpression || '';
+                const cronMatch = /^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+\*$/.exec(cronEx.trim());
+                const intervalMatch = /^\*\/(\d{1,2})\s+\*\s+\*\s+\*\s+\*$/.exec(cronEx.trim());
+
+                let evTriggerType = 'cron';
+                if (cronMatch) {
+                    evTriggerType = 'daily';
+                    const hh = cronMatch[2].padStart(2, '0');
+                    const mm = cronMatch[1].padStart(2, '0');
+                    document.getElementById('task_time').value = `${hh}:${mm}`;
+                } else if (intervalMatch) {
+                    evTriggerType = 'interval_mins';
+                    document.getElementById('task_interval').value = intervalMatch[1];
+                } else {
+                    document.getElementById('task_cron').value = cronEx;
+                }
+
+                document.getElementById('task_schedule_type').value = evTriggerType;
+                const event = new Event('change');
+                document.getElementById('task_schedule_type').dispatchEvent(event);
+                document.getElementById('task_desc').value = task.description || '';
+
+                document.getElementById('taskFormTitle').innerHTML = '<i class="bi bi-pencil-square text-success me-2"></i>编辑修改任务';
+                document.getElementById('taskFormCard').style.display = 'block';
+                window.scrollTo({ top: document.getElementById('taskFormCard').offsetTop, behavior: 'smooth' });
+            }
+        }
+    } catch (e) {
+        showNotification('无法加载数据', e.message, 'danger');
+    }
+}
+
+window.editTask = editTask;
+window.runTaskManual = runTaskManual;
+window.toggleTaskActive = toggleTaskActive;
+window.deleteTask = deleteTask;
+window.loadTasks = loadTasks;
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 监听定时任务表格中的所有操作（事件委托）
+    document.addEventListener('click', (e) => {
+        const runBtn = e.target.closest('.task-run-btn');
+        if (runBtn) runTaskManual(runBtn.dataset.taskId);
+
+        const editBtn = e.target.closest('.task-edit-btn');
+        if (editBtn) editTask(editBtn.dataset.taskId);
+
+        const delBtn = e.target.closest('.task-delete-btn');
+        if (delBtn) deleteTask(delBtn.dataset.taskId);
+
+        const createBtn = e.target.closest('#create-task-btn');
+        if (createBtn) {
+            document.getElementById('taskFormTitle').innerHTML = '<i class="bi bi-pencil-square text-success me-2"></i>配置新任务';
+            document.getElementById('taskForm').reset();
+            document.getElementById('task_id').value = '';
+            document.getElementById('taskFormCard').style.display = 'block';
+            window.scrollTo({ top: document.getElementById('taskFormCard').offsetTop, behavior: 'smooth' });
+        }
+
+        const closeBtn = e.target.closest('#close-task-form-btn') || e.target.closest('#cancel-task-form-btn');
+        if (closeBtn) {
+            document.getElementById('taskFormCard').style.display = 'none';
+        }
+    });
+
+    // 监听开关的变化
+    document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('task-active-toggle')) {
+            toggleTaskActive(e.target.dataset.taskId, e.target.checked);
+        }
+    });
+
+    // 处理导航栏切换加载数据
+    document.addEventListener('click', (e) => {
+        const navLink = e.target.closest('.nav-link[data-section]');
+        if (navLink) {
+            const section = navLink.dataset.section;
+            if (section === 'scheduler') {
+                loadTasks();
+            }
+            if (section === 'trendradar') {
+                const iframe = document.getElementById('trendradar-frame');
+                if (iframe) {
+                    // 使用 URL 重新加载，追加时间戳防止浏览器缓存严重导致页面不刷新
+                    const currentSrc = new URL(iframe.src);
+                    currentSrc.searchParams.set('t', Date.now());
+                    iframe.src = currentSrc.toString();
+                }
+            }
+        }
+    });
+
+    const schedTypeSelect = document.getElementById('task_schedule_type');
+    if (schedTypeSelect) {
+        schedTypeSelect.addEventListener('change', (e) => {
+            const type = e.target.value;
+            document.getElementById('task_time').style.display = type === 'daily' ? 'block' : 'none';
+            document.getElementById('task_interval').style.display = type === 'interval_mins' ? 'block' : 'none';
+            document.getElementById('task_cron').style.display = type === 'cron' ? 'block' : 'none';
+
+            let hint = '';
+            if (type === 'daily') hint = '设置一个闹钟时间，系统将在每天的这个时刻准点击发此任务。';
+            if (type === 'interval_mins') hint = '指定一个固定的分钟间隔频率连续不间断运行（适合盘中盯盘）。';
+            if (type === 'cron') hint = '适合极客玩家，完全自定义的 Linux 标准 Cron 表达式。';
+            document.getElementById('task_schedule_hint').innerText = hint;
+        });
+    }
+
+    const taskForm = document.getElementById('taskForm');
+    if (taskForm) {
+        taskForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const taskId = document.getElementById('task_id').value;
+
+            let finalCron = document.getElementById('task_cron').value.trim();
+            const schedType = document.getElementById('task_schedule_type').value;
+            if (schedType === 'daily') {
+                const t = document.getElementById('task_time').value; // "08:30"
+                if (t) {
+                    const [hh, mm] = t.split(':');
+                    finalCron = `${parseInt(mm)} ${parseInt(hh)} * * *`;
+                }
+            } else if (schedType === 'interval_mins') {
+                const interval = document.getElementById('task_interval').value || 5;
+                finalCron = `*/${interval} * * * *`;
+            }
+
+            const payload = {
+                name: document.getElementById('task_name').value.trim(),
+                type: document.getElementById('task_type').value,
+                cronExpression: finalCron,
+                active: document.getElementById('task_active').checked,
+                description: document.getElementById('task_desc').value.trim()
+            };
+
+            const isRunNow = e.submitter && e.submitter.id === 'save-run-now-btn';
+
+            const method = taskId ? 'PATCH' : 'POST';
+            const url = taskId ? `/api/tasks/${taskId}` : '/api/tasks';
+
+            try {
+                const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
+                if (res.success) {
+                    showNotification('成功', taskId ? '任务更新配置成功' : '任务创建成功', 'success');
+                    document.getElementById('taskFormCard').style.display = 'none';
+                    taskForm.reset();
+                    document.getElementById('task_id').value = '';
+
+                    const savedTaskId = taskId || res.data._id;
+                    if (isRunNow && savedTaskId) {
+                        showNotification('准备就绪', '正在呼叫后台引擎开始运行...', 'info');
+                        runTaskManual(savedTaskId);
+                    } else {
+                        loadTasks();
+                    }
+                } else {
+                    showNotification('失败', res.message, 'danger');
+                }
+            } catch (err) {
+                showNotification('失败', err.message, 'danger');
+            }
+        });
+    }
+});

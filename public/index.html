@@ -99,6 +99,13 @@
             padding: 15px;
             margin-bottom: 20px;
         }
+        .bg-indigo-soft { background: #f3f0ff; color: #5f3dc4; }
+        .bg-success-soft { background: #ebfbee; color: #2b8a3e; }
+        .bg-warning-soft { background: #fff9db; color: #f08c00; }
+        .badge { font-weight: 500; font-size: 0.75rem; }
+        .btn-white { background: #fff; color: #495057; border: 1px solid #dee2e6; }
+        .btn-white:hover { background: #f8f9fa; }
+        .card-custom { border-radius: 12px; border: 1px solid rgba(0,0,0,0.05); }
     </style>
 </head>
 
@@ -279,6 +286,113 @@
                                 <iframe src="http://localhost:3005" style="width: 100%; height: 100%; border: none; display: block;"
                                     id="situation-frame" title="Situation Monitor"></iframe>
                             </div>
+
+                <div id="scheduler" class="section" style="display: none;">
+                    <h2 class="h3 fw-bold mb-4 border-bottom pb-2">AI 定时任务与自动化推送</h2>
+                    <p class="text-muted mb-4">设定自动化巡航策略，让 AI 定期为您扫描市场、输出报告并自动推送到指定渠道。</p>
+                
+                    <!-- 任务列表 -->
+                    <div class="card card-custom mb-4 shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 fw-bold"><i class="bi bi-list-task text-primary me-2"></i>当前任务列表</h5>
+                            <button class="btn btn-sm btn-primary fw-bold" id="create-task-btn"><i class="bi bi-plus-lg"></i>
+                                创建新任务</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th class="ps-3">任务名与描述</th>
+                                            <th>动作类型</th>
+                                            <th>执行周期</th>
+                                            <th class="text-center">运行状态</th>
+                                            <th>最后运行时间</th>
+                                            <th class="text-end pe-3">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tasks-table-body">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">正在加载...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                
+                    <!-- 新建/编辑任务表单 -->
+                    <div class="card card-custom shadow-sm mb-4" id="taskFormCard" style="display: none;">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 fw-bold" id="taskFormTitle"><i class="bi bi-pencil-square text-success me-2"></i>配置新任务</h5>
+                            <button type="button" class="btn-close" id="close-task-form-btn"></button>
+                        </div>
+                        <div class="card-body">
+                            <form id="taskForm">
+                                <input type="hidden" id="task_id" name="task_id">
+                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">任务名称</label>
+                                        <input type="text" class="form-control" name="task_name" id="task_name"
+                                            placeholder="例如：每日早盘热点梳理" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">自动化动作</label>
+                                        <select class="form-select" name="task_type" id="task_type" required>
+                                            <option value="trendradar_report">【资讯雷达】全网热点/早晚报巡航推流</option>
+                                            <option value="market_monitor">【异动盯盘】自选股/重点板块五分钟级监控</option>
+                                            <option value="weekly_summary">【研报生成】周度/月度个股深度扫描</option>
+                                            <option value="model_health">【系统自检】AI 大模型探活与自修复</option>
+                                            <option value="data_cleanup">【数据清理】过期缓存清理</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">执行频率与时间 (就像设置闹钟一样)</label>
+                                        <div class="input-group">
+                                            <select class="form-select bg-light fw-bold" id="task_schedule_type"
+                                                style="max-width: 130px;">
+                                                <option value="daily">每天定时</option>
+                                                <option value="interval_mins">每隔几分钟</option>
+                                                <option value="cron">高级 Cron</option>
+                                            </select>
+                                            <input type="time" class="form-control fw-bold text-primary" id="task_time" value="08:00">
+                                            <input type="number" class="form-control fw-bold text-primary" id="task_interval" value="30"
+                                                min="1" placeholder="填入分钟数" style="display:none;">
+                                            <input type="text" class="form-control text-muted" name="task_cron" id="task_cron"
+                                                placeholder="0 8 * * *" value="0 8 * * *" style="display:none;">
+                                        </div>
+                                        <div class="form-text mt-1 text-muted" id="task_schedule_hint">设置一个闹钟时间，系统将在每天的这个时刻准点击发此任务。
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">启用状态</label>
+                                        <div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" id="task_active" name="task_active" checked>
+                                            <label class="form-check-label" for="task_active">创建后自动加入后台定时器</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">功能描述备注</label>
+                                    <textarea class="form-control" name="task_desc" id="task_desc" rows="2"
+                                        placeholder="用于记录这是用来做什么的..."></textarea>
+                                </div>
+                
+                                <hr>
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-success fw-bold px-4" id="save-task-btn"><i
+                                            class="bi bi-save"></i> 仅保存配置</button>
+                                    <button type="submit" class="btn btn-primary fw-bold px-4" id="save-run-now-btn"><i
+                                            class="bi bi-play-fill"></i> 保存并立即跑一次</button>
+                                    <button type="button" class="btn btn-light" id="cancel-task-form-btn">取消</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- 推送设置模块 -->
                 <div id="notifications" class="section" style="display: none;">
