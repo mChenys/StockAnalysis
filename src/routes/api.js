@@ -271,4 +271,103 @@ router.post('/push/test', authenticateToken, authorize('admin'), async (req, res
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
+// ==== TrendRadar 推送通道配置 API ====
+router.get('/push-config', authenticateToken, (req, res) => {
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const yaml = require('yaml'); // 使用 npm i yaml (保留注释版)
+        const configPath = path.resolve(__dirname, '../../python_service/TrendRadar/config/config.yaml');
+        if (!fs.existsSync(configPath)) {
+            return res.status(404).json({ success: false, message: 'config.yaml not found' });
+        }
+        const fileContents = fs.readFileSync(configPath, 'utf8');
+        const doc = yaml.parse(fileContents);
+        const channels = doc?.notification?.channels || {};
+        res.json({ success: true, data: channels });
+    } catch (error) {
+        logger.error('Get push-config error:', error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+router.post('/push-config', authenticateToken, authorize('admin'), (req, res) => {
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const yaml = require('yaml');
+        const newChannels = req.body;
+
+        if (!newChannels || typeof newChannels !== 'object') {
+            return res.status(400).json({ success: false, message: 'Invalid payload' });
+        }
+
+        const configPath = path.resolve(__dirname, '../../python_service/TrendRadar/config/config.yaml');
+        if (!fs.existsSync(configPath)) {
+            return res.status(404).json({ success: false, message: 'config.yaml not found' });
+        }
+        const fileContents = fs.readFileSync(configPath, 'utf8');
+
+        // 使用 yaml.parseDocument 解析以保留文件原有的大量注释结构
+        const doc = yaml.parseDocument(fileContents);
+
+        const existingNotificationNode = doc.get('notification');
+        if (!existingNotificationNode) {
+            doc.set('notification', { channels: newChannels });
+        } else {
+            const channelsNode = existingNotificationNode.get('channels');
+            if (!channelsNode) {
+                existingNotificationNode.set('channels', newChannels);
+            } else {
+                for (const [channelKey, channelData] of Object.entries(newChannels)) {
+                    let singleChannelNode = channelsNode.get(channelKey);
+                    if (!singleChannelNode) {
+                        channelsNode.set(channelKey, channelData);
+                    } else {
+                        for (const [propKey, propVal] of Object.entries(channelData)) {
+                            // 当传入空字符串时，允许清空 (比如清空 Token)
+                            singleChannelNode.set(propKey, propVal);
+                        }
+                    }
+                }
+            }
+        }
+
+        fs.writeFileSync(configPath, String(doc), 'utf8');
+
+        res.json({ success: true, message: '推送通道配置更新成功，立即生效' });
+    } catch (error) {
+        logger.error('Update push-config error:', error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+router.post('/push-config-test', authenticateToken, authorize('admin'), (req, res) => {
+    try {
+        const path = require('path');
+        const scriptPath = path.resolve(__dirname, '../../python_service/TrendRadar/test_push.py');
+        const venvPythonStr = path.resolve(__dirname, '../../python_service/venv/bin/python');
+
+        const testProcess = require('child_process').spawn(venvPythonStr, [scriptPath], {
+            cwd: path.resolve(__dirname, '../../python_service/TrendRadar')
+        });
+
+        let output = '';
+        testProcess.stdout.on('data', (data) => output += data.toString());
+        testProcess.stderr.on('data', (data) => output += data.toString());
+
+        testProcess.on('close', (code) => {
+            if (code === 0) {
+                res.json({ success: true, message: 'Test message sent successfully' });
+            } else {
+                logger.error(`Push test failed. Output: ${output}`);
+                res.status(500).json({ success: false, message: `Execution failed. Log: ${output}` });
+            }
+        });
+    } catch (error) {
+        logger.error(`Error testing push config: ${error.message}`);
+        res.status(500).json({ success: false, message: 'Failed to test push configuration' });
+    }
+});
+
 module.exports = router;

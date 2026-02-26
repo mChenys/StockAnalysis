@@ -280,6 +280,69 @@
                                     id="situation-frame" title="Situation Monitor"></iframe>
                             </div>
 
+                <!-- 推送设置模块 -->
+                <div id="notifications" class="section" style="display: none;">
+                    <div class="section-header">
+                        <h2>TrendRadar 推送通道配置</h2>
+                    </div>
+                    <div class="card card-custom p-4 mb-4">
+                        <p class="text-muted small">修改的配置将无缝写入 Python 引擎的 yaml 文件中立即生效。留空则代表该渠道不推送。</p>
+                        <form id="push-config-form">
+                            <h5 class="fw-bold text-primary mt-3"><i class="bi bi-telegram"></i> Telegram 机器人设置</h5>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small">Bot Token</label>
+                                    <input type="text" class="form-control" name="telegram_bot_token"
+                                        placeholder="格式: 123456:ABC-DEF...">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small">Chat ID</label>
+                                    <input type="text" class="form-control" name="telegram_chat_id" placeholder="如: -1001234567890">
+                                </div>
+                            </div>
+                
+                            <h5 class="fw-bold text-info mt-4"><i class="bi bi-chat-dots"></i> 钉钉机器人设置</h5>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small d-flex justify-content-between">
+                                    <span>Webhook URL</span>
+                                    <a href="https://open.dingtalk.com/document/robots/custom-robot-access" target="_blank"
+                                        class="text-decoration-none"><i class="bi bi-question-circle"></i> 如何获取?</a>
+                                </label>
+                                <input type="text" class="form-control" name="dingtalk_webhook_url"
+                                    placeholder="https://oapi.dingtalk.com/robot/send?access_token=...">
+                            </div>
+                
+                            <h5 class="fw-bold text-success mt-4"><i class="bi bi-wechat"></i> 企业微信机器人设置</h5>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small d-flex justify-content-between">
+                                    <span>Webhook URL</span>
+                                    <a href="https://developer.work.weixin.qq.com/document/path/91770" target="_blank"
+                                        class="text-decoration-none"><i class="bi bi-question-circle"></i> 如何获取?</a>
+                                </label>
+                                <input type="text" class="form-control" name="wework_webhook_url"
+                                    placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...">
+                            </div>
+                
+                            <h5 class="fw-bold text-danger mt-4"><i class="bi bi-apple"></i> Bark APP 推送设置</h5>
+                            <div class="mb-4">
+                                <label class="form-label text-muted small">Bark URL</label>
+                                <input type="text" class="form-control" name="bark_url"
+                                    placeholder="https://api.day.app/your_device_key/">
+                            </div>
+                
+                            <div class="d-flex gap-3 mt-4">
+                                <button type="submit" class="btn btn-primary px-4 py-2 fw-bold shadow-sm" id="save-push-config-btn">
+                                    <i class="bi bi-save"></i> 保存通道设置
+                                </button>
+                                <button type="button" class="btn btn-outline-success px-4 py-2 fw-bold shadow-sm"
+                                    id="test-push-config-btn">
+                                    <i class="bi bi-send"></i> 发送测试推送
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
                 <!-- 模型管理模块 -->
                 <div id="models" class="section" style="display: none;">
                     <div class="section-header">

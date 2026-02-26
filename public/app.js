@@ -159,6 +159,10 @@ function setupGlobalEventListeners() {
             refreshTrendRadar();
         }
 
+        if (target.id === 'test-push-config-btn' || target.closest('#test-push-config-btn')) {
+            testPushConfig();
+        }
+
         if (target.id === 'fetch-nvidia-models-btn') fetchNvidiaModels();
         if (target.matches('.add-nvidia-model-btn')) {
             const mId = target.dataset.nvidiaModelId;
@@ -171,6 +175,7 @@ function setupGlobalEventListeners() {
         if (id === 'loginForm') { e.preventDefault(); await handleAuth('/api/auth/login', Object.fromEntries(new FormData(e.target))); }
         else if (id === 'registerForm') { e.preventDefault(); await handleAuth('/api/auth/register', Object.fromEntries(new FormData(e.target))); }
         else if (id === 'analysis-form') { e.preventDefault(); performAnalysis(); }
+        else if (id === 'push-config-form') { e.preventDefault(); savePushConfig(); }
     });
 
     document.addEventListener('change', (e) => {
@@ -198,6 +203,7 @@ function showSection(name) {
     if (name === 'favorites') loadFavorites();
     if (name === 'news') loadNewsFeed();
     if (name === 'trendradar') loadTrendRadarInterface();
+    if (name === 'notifications') loadPushConfig();
 }
 
 function updateModelOptions(provider) {
@@ -671,3 +677,81 @@ function initializeSocket() {
     });
 }
 
+async function loadPushConfig() {
+    try {
+        const res = await apiFetch('/api/push-config');
+        if (res.success && res.data) {
+            const form = document.forms['push-config-form'];
+            if (!form) return;
+            form.elements['telegram_bot_token'].value = res.data.telegram?.bot_token || '';
+            form.elements['telegram_chat_id'].value = res.data.telegram?.chat_id || '';
+            form.elements['dingtalk_webhook_url'].value = res.data.dingtalk?.webhook_url || '';
+            form.elements['wework_webhook_url'].value = res.data.wework?.webhook_url || '';
+            form.elements['bark_url'].value = res.data.bark?.url || '';
+        }
+    } catch (e) {
+        showNotification('获取配置失败', e.message, 'danger');
+    }
+}
+
+async function savePushConfig() {
+    const form = document.forms['push-config-form'];
+    const btn = document.getElementById('save-push-config-btn');
+    btn.disabled = true;
+    const oldText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 保存中...';
+
+    const payload = {
+        telegram: {
+            bot_token: form.elements['telegram_bot_token'].value.trim(),
+            chat_id: form.elements['telegram_chat_id'].value.trim()
+        },
+        dingtalk: {
+            webhook_url: form.elements['dingtalk_webhook_url'].value.trim()
+        },
+        wework: {
+            webhook_url: form.elements['wework_webhook_url'].value.trim()
+        },
+        bark: {
+            url: form.elements['bark_url'].value.trim()
+        }
+    };
+
+    try {
+        const res = await apiFetch('/api/push-config', { method: 'POST', body: JSON.stringify(payload) });
+        if (res.success) {
+            showNotification('成功', res.message || '推送通道配置已成功更新并将立即生效', 'success');
+        } else {
+            showNotification('保存失败', res.message, 'danger');
+        }
+    } catch (e) {
+        showNotification('保存失败', e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldText;
+    }
+}
+
+async function testPushConfig() {
+    const btn = document.getElementById('test-push-config-btn');
+    if (!btn) return;
+
+    btn.disabled = true;
+    const oldHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 发送测试中...';
+
+    try {
+        const res = await apiFetch('/api/push-config-test', { method: 'POST' });
+        if (res.success) {
+            showNotification('测试消息发送成功', '请前往您配置好的各大客户端检查消息！', 'success');
+        } else {
+            showNotification('测试失败', res.message || '测试过程遇到错误', 'danger');
+        }
+    } catch (e) {
+        showNotification('测试失败', e.message || '网络连接或发生异常', 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+    }
+}
+window.testPushConfig = testPushConfig;
