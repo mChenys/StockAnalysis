@@ -636,8 +636,17 @@ async function loadNewsFeed(query = '') {
         }
         currentNewsList = res.data;
         renderNewsData();
+        updateNewsRefreshTime();
     } catch (e) {
         container.innerHTML = `<div class="text-center py-5 text-danger">加载失败: ${e.message}</div>`;
+    }
+}
+
+function updateNewsRefreshTime() {
+    const el = document.getElementById('news-refresh-time');
+    if (el) {
+        const now = new Date();
+        el.innerHTML = `<i class="bi bi-clock-history me-1"></i>上次更新: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
     }
 }
 
@@ -652,6 +661,7 @@ async function fetchNewsIncremental(newTag) {
             currentNewsList = [...newItems, ...currentNewsList];
             currentNewsList.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
             renderNewsData();
+            updateNewsRefreshTime();
             showNotification('成功', `${newTag} 态势已并入全网雷达`, 'success');
         } else {
             showNotification('提示', `无最近 ${newTag} 的相关快讯`, 'warning');
