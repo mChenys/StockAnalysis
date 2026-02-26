@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:help.aliyun.com)",
+      "WebFetch(domain:zhuanlan.zhihu.com)",
+      "WebFetch(domain:www.aliyun.com)",
+      "WebFetch(domain:blog.csdn.net)",
+      "WebFetch(domain:code.aliyun.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh repo view gravirycz/claude-mem)",
+      "Bash(curl -s http://127.0.0.1:8000/openapi.json)",
+      "Bash(./venv/bin/python -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(''\\\\n''.join\\(sorted\\(data.get\\(''paths'',{}\\).keys\\(\\)\\)\\)\\)\")",
+      "Bash(curl -s http://127.0.0.1:8000/docs)",
+      "Bash(./venv/bin/python -c \":*)",
+      "Bash(ps -o lstart,pid,command -p 40824)",
+      "Read(//Users/chenyousheng/work/workspace/node/StockAnalysis/python_service/**)",
+      "Bash(node -c /Users/chenyousheng/work/workspace/node/StockAnalysis/src/services/cronManager.js)",
+      "Bash(curl -s http://127.0.0.1:8000/api/stock/ma_cross -X POST -H \"Content-Type: application/json\" -d '{\"\"symbol\"\": \"\"NVDA\"\"}')",
+      "Bash(curl -s -X POST http://127.0.0.1:8000/api/stock/price -H \"Content-Type: application/json\" -d '{\"\"symbol\"\": \"\"TSLA\"\"}')"
+    ]
+  }
+}

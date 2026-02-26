@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">37.5% </span>
+                <span class="strong">81.25% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>6/16</span>
+                <span class='fraction'>13/16</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">25% </span>
+                <span class="strong">50% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>2/8</span>
+                <span class='fraction'>4/8</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">25% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>1/4</span>
+                <span class='fraction'>4/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">42.85% </span>
+                <span class="strong">85.71% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>6/14</span>
+                <span class='fraction'>12/14</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -107,16 +107,16 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -138,17 +138,17 @@ const TopicSchema = new mongoose.Schema({
 });
 &nbsp;
 class InMemoryTopic {
-<span class="fstat-no" title="function not covered" >    co</span>nstructor(data) {
-<span class="cstat-no" title="statement not covered" >        Object.assign(this, data);</span>
-<span class="cstat-no" title="statement not covered" >        this._id = Date.now().toString();</span>
+    constructor(data) {
+        Object.assign(this, data);
+        this._id = Date.now().toString();
     }
-<span class="fstat-no" title="function not covered" >    as</span>ync save() {
-<span class="cstat-no" title="statement not covered" >        if (!InMemoryTopic.storage) <span class="cstat-no" title="statement not covered" >InMemoryTopic.storage = new Map();</span></span>
-<span class="cstat-no" title="statement not covered" >        InMemoryTopic.storage.set(this.name, this);</span>
-<span class="cstat-no" title="statement not covered" >        return this;</span>
+    async save() {
+        <span class="missing-if-branch" title="else path not taken" >E</span>if (!InMemoryTopic.storage) InMemoryTopic.storage = new Map();
+        InMemoryTopic.storage.set(this.name, this);
+        return this;
     }
-    static async find() { return this.storage ? <span class="branch-0 cbranch-no" title="branch not covered" >Array.from(this.storage.values()) </span>: []; }
-<span class="fstat-no" title="function not covered" >    st</span>atic async findOne(query) { <span class="cstat-no" title="statement not covered" >return this.storage ? this.storage.get(query.name) : null; </span>}
+    static async find() { return this.storage ? Array.from(this.storage.values()) : <span class="branch-1 cbranch-no" title="branch not covered" >[];</span> }
+    static async findOne(query) { return this.storage ? <span class="branch-0 cbranch-no" title="branch not covered" >this.storage.get(query.name) </span>: null; }
 }
 &nbsp;
 let ExportedTopic;
@@ -166,7 +166,7 @@ module.exports = ExportedTopic;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-22T07:52:03.444Z
+                at 2026-02-26T14:40:38.489Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

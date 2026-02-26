@@ -42,6 +42,10 @@ const taskSchema = new mongoose.Schema({
     },
     lastRunMessage: {
         type: String
+    },
+    totalRunCount: {
+        type: Number,
+        default: 0
     }
 }, { timestamps: true });
 

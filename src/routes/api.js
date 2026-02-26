@@ -7,6 +7,7 @@ const wechatPusher = require('../pusher/wechatPusher');
 const scheduler = require('../scheduler/taskScheduler');
 const logger = require('../utils/logger');
 const { authenticateToken, authorize } = require('../middleware/auth');
+const tasksRouter = require('./tasks');
 
 // ==== 开发模式状态（无需认证） ====
 router.get('/dev/status', (req, res) => {
@@ -23,11 +24,33 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         const activeModels = models.filter(m => m.active).length;
         const today = new Date().toDateString();
         const todayAnalyses = (global.analysisResults || []).filter(r => new Date(r.timestamp).toDateString() === today);
+        const Favorite = require('../database/models/Favorite');
+        const Task = require('../database/models/Task');
+        let favoritesCount = 0;
+        let tasksCount = 0;
+        let taskRunCount = 0;
+        if (global.isInMemory) {
+            const favorites = await Favorite.find({ user: req.user._id });
+            favoritesCount = favorites.length;
+            const tasks = tasksRouter.getInMemoryTasks ? tasksRouter.getInMemoryTasks() : [];
+            const userTasks = tasks.filter(task => task.user?.toString() === req.user._id.toString());
+            tasksCount = userTasks.length;
+            taskRunCount = userTasks.reduce((sum, task) => sum + (task.totalRunCount || 0), 0);
+        } else {
+            favoritesCount = await Favorite.countDocuments({ user: req.user._id });
+            const tasks = await Task.find({ user: req.user._id }).select('totalRunCount');
+            tasksCount = tasks.length;
+            taskRunCount = tasks.reduce((sum, task) => sum + (task.totalRunCount || 0), 0);
+        }
         res.json({ 
             activeModels, 
             todayAnalysis: todayAnalyses.length, 
             monitoredStocks: scheduler.watchList?.length || 0, 
-            messagesSent: global.messagesSentCount || 0 
+            messagesSent: global.messagesSentCount || 0,
+            favoritesCount,
+            tasksCount,
+            taskRunCount,
+            notificationTriggers: global.messagesSentCount || 0
         });
     } catch (error) { 
         logger.error('Dashboard error:', error.message);

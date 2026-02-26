@@ -33,7 +33,8 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
                 name, description, type, cronExpression, parameters,
                 active: active !== undefined ? active : true,
                 createdAt: new Date(),
-                lastRunStatus: 'pending'
+                lastRunStatus: 'pending',
+                totalRunCount: 0
             };
             inMemoryTasks.push(task);
             if (task.active) cronManager.scheduleTask(task);
@@ -147,3 +148,4 @@ router.post('/:id/run', authenticateToken, authorize('admin'), async (req, res) 
 module.exports = router;
 // Expose for cronManager Updates in Memory mode
 module.exports.getInMemoryTask = (id) => inMemoryTasks.find(t => t._id === id);
+module.exports.getInMemoryTasks = () => inMemoryTasks;

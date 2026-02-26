@@ -228,6 +228,38 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="col-md-3 mb-4">
+                            <div class="card card-custom">
+                                <div class="card-body">
+                                    <p class="text-muted small mb-1">收藏总数</p>
+                                    <h4 class="mb-0" id="favorites-count">0</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-4">
+                            <div class="card card-custom">
+                                <div class="card-body">
+                                    <p class="text-muted small mb-1">定时任务总数</p>
+                                    <h4 class="mb-0" id="tasks-count">0</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-4">
+                            <div class="card card-custom">
+                                <div class="card-body">
+                                    <p class="text-muted small mb-1">任务执行次数</p>
+                                    <h4 class="mb-0" id="task-runs-count">0</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-4">
+                            <div class="card card-custom">
+                                <div class="card-body">
+                                    <p class="text-muted small mb-1">通知触发总数</p>
+                                    <h4 class="mb-0" id="notifications-count">0</h4>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -472,29 +504,61 @@
                                     style="display: none; border-style: dashed !important;">
                                     <h6 class="fw-bold text-primary mb-3"><i
                                             class="bi bi-gear-wide-connected me-2"></i>异动盯盘策略配置</h6>
+
+                                    <!-- 监控策略选择 -->
+                                    <div class="row mb-3">
+                                        <div class="col-md-12">
+                                            <label class="form-label small fw-bold">监控策略</label>
+                                            <div class="d-flex gap-4">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="param_monitor_type"
+                                                        value="daily" id="monitor_type_daily">
+                                                    <label class="form-check-label small" for="monitor_type_daily">
+                                                        <strong>📈 当日涨跌</strong>
+                                                        <span class="text-muted d-block" style="font-size: 0.7rem;">监控当日涨跌幅是否超过阈值</span>
+                                                    </label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="param_monitor_type"
+                                                        value="intraday" id="monitor_type_intraday" checked>
+                                                    <label class="form-check-label small" for="monitor_type_intraday">
+                                                        <strong>⚡ 盘中异动</strong>
+                                                        <span class="text-muted d-block" style="font-size: 0.7rem;">监控N分钟内的剧烈波动</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div class="row">
-                                        <div class="col-md-4 mb-3">
-                                            <label class="form-label small fw-bold">价格剧烈波动阀值 (%)</label>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label small fw-bold">价格波动阀值 (%)</label>
                                             <div class="input-group input-group-sm">
                                                 <span class="input-group-text">±</span>
                                                 <input type="number" class="form-control" id="param_price_change"
                                                     value="2.0" step="0.1">
                                                 <span class="input-group-text">%</span>
                                             </div>
-                                            <div class="form-text mt-1" style="font-size: 0.7rem;">5分钟内涨跌幅触发</div>
                                         </div>
-                                        <div class="col-md-4 mb-3">
-                                            <label class="form-label small fw-bold">成交量异常放大 (倍)</label>
+                                        <div class="col-md-3 mb-3" id="monitor_window_group">
+                                            <label class="form-label small fw-bold">监控时间窗口 (分钟)</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" class="form-control" id="param_monitor_window"
+                                                    value="5" step="1" min="1" max="60">
+                                                <span class="input-group-text">分钟</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3 mb-3" id="volume_ratio_group">
+                                            <label class="form-label small fw-bold">成交量放大 (倍)</label>
                                             <div class="input-group input-group-sm">
                                                 <span class="input-group-text">></span>
                                                 <input type="number" class="form-control" id="param_volume_ratio"
                                                     value="1.5" step="0.1">
                                                 <span class="input-group-text">倍</span>
                                             </div>
-                                            <div class="form-text mt-1" style="font-size: 0.7rem;">对比前5日均量</div>
                                         </div>
-                                        <div class="col-md-4 mb-3">
-                                            <label class="form-label small fw-bold">特殊信号监控</label>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label small fw-bold">特殊信号</label>
                                             <div class="form-check form-switch mt-1">
                                                 <input class="form-check-input" type="checkbox" id="param_ma_cross"
                                                     checked>
@@ -503,13 +567,13 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="row mb-3">
+                                    <div class="row mb-3" id="trigger_logic_row">
                                         <div class="col-md-12">
                                             <div class="p-2 rounded bg-white border d-flex align-items-center"
                                                 style="border-style: solid !important;">
                                                 <div class="d-flex align-items-center">
                                                     <i class="bi bi-funnel-fill text-primary me-2"></i>
-                                                    <label class="form-label small fw-bold mb-0">多条件触发逻辑切换</label>
+                                                    <label class="form-label small fw-bold mb-0">多条件触发逻辑</label>
                                                 </div>
                                                 <div class="form-check form-switch mb-0 ms-4">
                                                     <input class="form-check-input" type="checkbox"
@@ -523,19 +587,18 @@
                                     </div>
                                     <div class="row mt-2">
                                         <div class="col-md-12">
-                                            <label class="form-label small fw-bold">监控范围选择</label>
+                                            <label class="form-label small fw-bold">监控范围</label>
                                             <div class="d-flex gap-3">
                                                 <div class="form-check">
                                                     <input class="form-check-radio" type="radio" name="param_scope"
                                                         value="favorites" id="scope_fav" checked>
-                                                    <label class="form-check-label small" for="scope_fav">我的收藏
-                                                        (自选股)</label>
+                                                    <label class="form-check-label small" for="scope_fav">我的收藏</label>
                                                 </div>
                                                 <div class="form-check">
                                                     <input class="form-check-radio" type="radio" name="param_scope"
                                                         value="sectors" id="scope_sectors">
                                                     <label class="form-check-label small"
-                                                        for="scope_sectors">12大重点权重板块</label>
+                                                        for="scope_sectors">权重板块</label>
                                                 </div>
                                                 <div class="form-check">
                                                     <input class="form-check-radio" type="radio" name="param_scope"

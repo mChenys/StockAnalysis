@@ -336,7 +336,23 @@ async function apiFetch(url, opts = {}) {
     if (res.status === 401) logout();
     return res.json();
 }
-async function loadDashboard() { try { const data = await apiFetch('/api/dashboard'); document.getElementById('active-models-count').textContent = data.activeModels; document.getElementById('today-analysis-count').textContent = data.todayAnalysis; } catch (e) {} }
+async function loadDashboard() {
+    try {
+        const data = await apiFetch('/api/dashboard');
+        const activeModelsEl = document.getElementById('active-models-count');
+        const todayAnalysisEl = document.getElementById('today-analysis-count');
+        const favoritesEl = document.getElementById('favorites-count');
+        const tasksEl = document.getElementById('tasks-count');
+        const taskRunsEl = document.getElementById('task-runs-count');
+        const notificationsEl = document.getElementById('notifications-count');
+        if (activeModelsEl) activeModelsEl.textContent = data.activeModels ?? 0;
+        if (todayAnalysisEl) todayAnalysisEl.textContent = data.todayAnalysis ?? 0;
+        if (favoritesEl) favoritesEl.textContent = data.favoritesCount ?? 0;
+        if (tasksEl) tasksEl.textContent = data.tasksCount ?? 0;
+        if (taskRunsEl) taskRunsEl.textContent = data.taskRunCount ?? 0;
+        if (notificationsEl) notificationsEl.textContent = data.notificationTriggers ?? data.messagesSent ?? 0;
+    } catch (e) {}
+}
 async function loadModels() {
     try {
         const models = await apiFetch('/api/models');
@@ -1292,8 +1308,17 @@ async function editTask(taskId) {
                 if (task.type === 'market_monitor' && task.parameters) {
                     const params = task.parameters;
                     if (params.price_change) document.getElementById('param_price_change').value = params.price_change;
+                    if (params.monitor_window) document.getElementById('param_monitor_window').value = params.monitor_window;
                     if (params.volume_ratio) document.getElementById('param_volume_ratio').value = params.volume_ratio;
                     if (params.ma_cross !== undefined) document.getElementById('param_ma_cross').checked = params.ma_cross;
+                    // 加载监控策略类型
+                    const monitorType = params.monitor_type || 'intraday';
+                    const monitorTypeRadio = document.querySelector(`input[name="param_monitor_type"][value="${monitorType}"]`);
+                    if (monitorTypeRadio) {
+                        monitorTypeRadio.checked = true;
+                        // 触发 UI 更新
+                        window.updateMonitorTypeUI(monitorType);
+                    }
                     if (params.trigger_logic !== undefined) {
                         const tlToggle = document.getElementById('param_trigger_logic');
                         tlToggle.checked = params.trigger_logic === 'and';
@@ -1422,7 +1447,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
+
+        // 监控策略切换逻辑
+        const monitorTypeRadios = document.querySelectorAll('input[name="param_monitor_type"]');
+        monitorTypeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                window.updateMonitorTypeUI(e.target.value);
+            });
+        });
     }
+
+    // 监控策略 UI 更新函数
+    window.updateMonitorTypeUI = (monitorType) => {
+        const windowGroup = document.getElementById('monitor_window_group');
+        const volumeGroup = document.getElementById('volume_ratio_group');
+        const triggerLogicRow = document.getElementById('trigger_logic_row');
+
+        if (monitorType === 'daily') {
+            // 当日涨跌模式：隐藏时间窗口和成交量相关设置
+            if (windowGroup) windowGroup.style.display = 'none';
+            if (volumeGroup) volumeGroup.style.display = 'none';
+            if (triggerLogicRow) triggerLogicRow.style.display = 'none';
+        } else {
+            // 盘中异动模式：显示所有设置
+            if (windowGroup) windowGroup.style.display = 'block';
+            if (volumeGroup) volumeGroup.style.display = 'block';
+            if (triggerLogicRow) triggerLogicRow.style.display = 'block';
+        }
+    };
 
     // 将函数暴露给 editTask 使用
     window.updateMonitorConfigVisibility = updateMonitorConfigVisibility;
@@ -1458,7 +1510,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // 如果是异动盯盘，收集额外参数
             if (payload.type === 'market_monitor') {
                 payload.parameters = {
+                    monitor_type: document.querySelector('input[name="param_monitor_type"]:checked')?.value || 'intraday',
                     price_change: parseFloat(document.getElementById('param_price_change').value) || 2.0,
+                    monitor_window: parseInt(document.getElementById('param_monitor_window').value) || 5,
                     volume_ratio: parseFloat(document.getElementById('param_volume_ratio').value) || 1.5,
                     ma_cross: document.getElementById('param_ma_cross').checked,
                     trigger_logic: document.getElementById('param_trigger_logic').checked ? 'and' : 'or',

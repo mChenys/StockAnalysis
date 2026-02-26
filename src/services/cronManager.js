@@ -11,7 +11,10 @@ const axios = require('axios');
 class CronManager {
     constructor() {
         this.jobs = new Map(); // Store cron.schedule objects
-        this.lastStates = new Map(); // Store symbol -> { price, volume, timestamp }
+        // Store symbol -> [{ price, volume, timestamp }, ...] (历史状态数组，按时间排序)
+        this.priceHistory = new Map();
+        // 保留最近60分钟的历史数据
+        this.maxHistoryMinutes = 60;
     }
 
     async init() {
@@ -63,10 +66,14 @@ class CronManager {
     async executeTask(task) {
         try {
             if (!global.isInMemory) {
-                await Task.findByIdAndUpdate(task._id, { lastRunStatus: 'running', lastRunAt: new Date() });
+                await Task.findByIdAndUpdate(task._id, {
+                    $set: { lastRunStatus: 'running', lastRunAt: new Date() },
+                    $inc: { totalRunCount: 1 }
+                });
             } else {
                 task.lastRunStatus = 'running';
                 task.lastRunAt = new Date();
+                task.totalRunCount = (task.totalRunCount || 0) + 1;
             }
             if (global.io) global.io.emit('task_status_updated', { taskId: task._id.toString(), status: 'running' });
 
@@ -164,6 +171,8 @@ class CronManager {
         const volumeThreshold = params.volume_ratio || 1.5;
         const triggerLogic = params.trigger_logic || 'or';
         const scope = params.scope || 'favorites';
+        const monitorWindow = params.monitor_window || 5; // 监控时间窗口（分钟）
+        const monitorType = params.monitor_type || 'intraday'; // 监控类型: intraday(盘中异动) 或 daily(当日涨跌)
 
         // 1. 获取监控代码列表
         let symbols = [];
@@ -181,7 +190,8 @@ class CronManager {
             return;
         }
 
-        logger.info(`Monitoring ${symbols.length} symbols for task ${task.name} (Logic: ${triggerLogic.toUpperCase()})`);
+        const typeLabel = monitorType === 'daily' ? '当日涨跌' : `盘中异动(${monitorWindow}min)`;
+        logger.info(`Monitoring ${symbols.length} symbols for task ${task.name} (Type: ${typeLabel}, Logic: ${triggerLogic.toUpperCase()})`);
 
         const alerts = [];
         for (const symbol of symbols) {
@@ -191,30 +201,52 @@ class CronManager {
 
                 const currentState = {
                     price: data.currentPrice,
-                    change: data.changePercent,
+                    change: data.changePercent, // 当日涨跌幅
+                    previousClose: data.previousClose,
                     session: data.session,
                     volume: data.volume,
                     timestamp: Date.now()
                 };
 
-                const prevState = this.lastStates.get(symbol);
-                if (prevState) {
-                    const priceDiff = Math.abs(currentState.price - prevState.price) / prevState.price * 100;
+                let priceDiff = 0;
+                let volumeRatio = 1;
+                let comparisonBase = null;
 
+                if (monitorType === 'daily') {
+                    // 当日涨跌模式：直接使用 API 返回的涨跌幅
+                    priceDiff = Math.abs(currentState.change);
+                    volumeRatio = 1; // 当日模式不比较成交量变化
+                    comparisonBase = { price: currentState.previousClose, source: '昨日收盘价' };
+                } else {
+                    // 盘中异动模式：比较 N 分钟前的价格
+                    comparisonBase = this.getStateNMinutesAgo(symbol, monitorWindow);
+                    if (comparisonBase) {
+                        priceDiff = Math.abs(currentState.price - comparisonBase.price) / comparisonBase.price * 100;
+                        volumeRatio = (currentState.volume && comparisonBase.volume)
+                            ? currentState.volume / comparisonBase.volume
+                            : 1;
+                    }
+                }
+
+                if (comparisonBase) {
                     const matches = [];
                     const status = {
                         price: priceDiff >= priceThreshold,
-                        volume: (currentState.volume && prevState.volume) ? (currentState.volume / prevState.volume >= volumeThreshold) : false,
+                        volume: monitorType === 'intraday' && volumeRatio >= volumeThreshold,
                         ma: false
                     };
 
                     if (status.price) {
-                        const direction = currentState.price > prevState.price ? '🚀 快速拉升' : '📉 快速砸盘';
-                        matches.push(`${direction} (${priceDiff.toFixed(2)}%)`);
+                        if (monitorType === 'daily') {
+                            const direction = currentState.change > 0 ? '📈 上涨' : '📉 下跌';
+                            matches.push(`${direction} (${Math.abs(currentState.change).toFixed(2)}%)`);
+                        } else {
+                            const direction = currentState.price > comparisonBase.price ? '🚀 快速拉升' : '📉 快速砸盘';
+                            matches.push(`${direction} (${priceDiff.toFixed(2)}%)`);
+                        }
                     }
                     if (status.volume) {
-                        const volRatio = currentState.volume / prevState.volume;
-                        matches.push(`🔊 成交量激增 (${volRatio.toFixed(1)}倍)`);
+                        matches.push(`🔊 成交量激增 (${volumeRatio.toFixed(1)}倍)`);
                     }
 
                     // 检查均线交叉 (如果开启)
@@ -229,7 +261,10 @@ class CronManager {
 
                     // 逻辑判定
                     let isTriggered = false;
-                    if (triggerLogic === 'and') {
+                    if (monitorType === 'daily') {
+                        // 当日模式：只判断价格涨跌幅和均线
+                        isTriggered = status.price || (params.ma_cross && status.ma);
+                    } else if (triggerLogic === 'and') {
                         // AND 逻辑：所有启用的主要阈值必须同时满足 (MA如果开启也必须满足)
                         isTriggered = status.price && status.volume;
                         if (params.ma_cross) isTriggered = isTriggered && status.ma;
@@ -240,12 +275,17 @@ class CronManager {
 
                     if (isTriggered) {
                         const reason = matches.join(' + ');
-                        alerts.push(`【监控触发】${symbol}\n原因: ${reason}\n当前价格: ${currentState.price}\n市场状态: ${currentState.session}`);
+                        const changeInfo = monitorType === 'daily'
+                            ? `当日涨跌: ${currentState.change.toFixed(2)}%`
+                            : `${monitorWindow}分钟变化: ${priceDiff.toFixed(2)}%`;
+                        alerts.push(`【监控触发】${symbol}\n原因: ${reason}\n当前价格: ${currentState.price}\n${changeInfo}\n市场状态: ${currentState.session}`);
                     }
                 }
 
-                // 更新状态 (保存最新价格和成交量)
-                this.lastStates.set(symbol, currentState);
+                // 保存当前状态到历史记录 (盘中异动模式需要)
+                if (monitorType === 'intraday') {
+                    this.addPriceHistory(symbol, currentState);
+                }
             } catch (err) {
                 logger.error(`Error monitoring ${symbol}: ${err.message}`);
             }
@@ -272,6 +312,56 @@ class CronManager {
                 });
             }
         }
+    }
+
+    /**
+     * 添加价格历史记录
+     * @param {string} symbol - 股票代码
+     * @param {object} state - { price, volume, timestamp, ... }
+     */
+    addPriceHistory(symbol, state) {
+        if (!this.priceHistory.has(symbol)) {
+            this.priceHistory.set(symbol, []);
+        }
+        const history = this.priceHistory.get(symbol);
+        history.push(state);
+
+        // 清理超过 maxHistoryMinutes 的旧数据
+        const cutoff = Date.now() - this.maxHistoryMinutes * 60 * 1000;
+        while (history.length > 0 && history[0].timestamp < cutoff) {
+            history.shift();
+        }
+    }
+
+    /**
+     * 获取 N 分钟前的状态
+     * @param {string} symbol - 股票代码
+     * @param {number} minutes - 分钟数
+     * @returns {object|null} - 历史状态或 null
+     */
+    getStateNMinutesAgo(symbol, minutes) {
+        const history = this.priceHistory.get(symbol);
+        if (!history || history.length === 0) {
+            return null;
+        }
+
+        const targetTime = Date.now() - minutes * 60 * 1000;
+
+        // 找到最接近目标时间的历史记录（不晚于目标时间）
+        let closest = null;
+        let minDiff = Infinity;
+
+        for (const state of history) {
+            if (state.timestamp <= targetTime) {
+                const diff = targetTime - state.timestamp;
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = state;
+                }
+            }
+        }
+
+        return closest;
     }
 
     async sendPushNotification(message) {
