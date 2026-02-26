@@ -227,8 +227,11 @@
                 <!-- 收藏夹模块 -->
                 <div id="favorites" class="section" style="display: none;">
                     <div id="favorites-list-view">
-                        <div class="section-header">
-                            <h2>我的收藏</h2>
+                        <div class="section-header d-flex justify-content-between align-items-center mb-4">
+                            <h2 class="mb-0">我的收藏</h2>
+                            <button class="btn btn-outline-primary btn-sm" onclick="loadFavorites()">
+                                <i class="bi bi-arrow-clockwise"></i> 刷新列表
+                            </button>
                         </div>
                         <div id="favorites-list-container" class="row"></div>
                     </div>
@@ -269,9 +272,13 @@
                                 <div class="section-header d-flex flex-wrap justify-content-between align-items-center mb-0 pb-2 border-bottom">
                                     <h2 class="mb-0">全网热点雷达</h2>
                                     <div class="d-flex align-items-center gap-2">
+                                        <div id="trendradar-last-check" class="text-muted small me-2" style="font-size: 0.75rem;"></div>
                                         <select class="form-select form-select-sm" id="trendradar-model-select" style="width: 200px;"></select>
-                                        <button class="btn btn-primary btn-sm" id="trendradar-refresh-btn">
-                                            <i class="bi bi-arrow-clockwise"></i> 重新生成AI分析
+                                        <button class="btn btn-outline-info btn-sm" id="trendradar-reload-btn" title="查看当前磁盘上已有的最新报告">
+                                            <i class="bi bi-arrow-clockwise"></i> 刷新视图
+                                        </button>
+                                        <button class="btn btn-primary btn-sm" id="trendradar-refresh-btn" title="触发 AI 重新爬取并生成深度分析报告">
+                                            <i class="bi bi-robot"></i> 重新生成AI分析
                                         </button>
                                         <div id="trendradar-spinner" class="spinner-border spinner-border-sm text-primary d-none ms-2"></div>
                                     </div>
@@ -282,7 +289,14 @@
                                 </div>
                             </div>
                             <!-- 全球态势监控模块 -->
-                            <div id="situation" class="section" style="display: none; height: 92vh; margin: -1.5rem -1.5rem 0 -1.5rem;">
+                            <div id="situation" class="section"
+                                style="display: none; height: 92vh; margin: -1.5rem -1.5rem 0 -1.5rem; position: relative;">
+                                <div style="position: absolute; top: 15px; right: 15px; z-index: 1000;">
+                                    <button class="btn btn-light btn-sm shadow-sm" onclick="document.getElementById('situation-frame').src += ''"
+                                        title="刷新态势图">
+                                        <i class="bi bi-arrow-clockwise"></i> 刷新地图
+                                    </button>
+                                </div>
                                 <iframe src="http://localhost:3005" style="width: 100%; height: 100%; border: none; display: block;"
                                     id="situation-frame" title="Situation Monitor"></iframe>
                             </div>

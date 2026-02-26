@@ -155,6 +155,36 @@ function setupGlobalEventListeners() {
             document.getElementById('favorites-list-view').style.display = 'block';
         }
 
+        if (target.id === 'trendradar-reload-btn' || target.closest('#trendradar-reload-btn')) {
+            const frame = document.getElementById('trendradar-frame');
+            if (frame) {
+                const oldStats = JSON.parse(localStorage.getItem('trendradar_last_stats') || '{"newsCount":0}');
+                apiFetch('/api/trendradar/stats').then(newStats => {
+                    if (newStats.success) {
+                        const diff = newStats.newsCount - oldStats.newsCount;
+
+                        // 刷新 iframe
+                        const currentUrl = new URL(frame.src);
+                        currentUrl.searchParams.set('t', Date.now());
+                        frame.src = currentUrl.toString();
+
+                        // 更新 UI 指示器
+                        const lastCheck = document.getElementById('trendradar-last-check');
+                        if (lastCheck) lastCheck.innerText = `最后检查: ${new Date().toLocaleTimeString()}`;
+
+                        // 提示结果
+                        if (diff > 0) {
+                            showNotification('发现更新', `新增 ${diff} 条新闻，报告生成于 ${newStats.generatedAt}`, 'success');
+                        } else {
+                            showNotification('已刷新', '视图已重载，目前磁盘上暂无更多新增新闻', 'info');
+                        }
+
+                        localStorage.setItem('trendradar_last_stats', JSON.stringify(newStats));
+                    }
+                });
+            }
+        }
+
         if (target.id === 'trendradar-refresh-btn' || target.closest('#trendradar-refresh-btn')) {
             refreshTrendRadar();
         }
@@ -347,6 +377,13 @@ async function loadTrendRadarInterface() {
         let html = '<option value="ALL" selected>🚀 全部活跃模型 (并行加速)</option>';
         html += activeModels.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
         modelSelect.innerHTML = html;
+
+        // 初始化最后统计量
+        apiFetch('/api/trendradar/stats').then(stats => {
+            if (stats.success && !localStorage.getItem('trendradar_last_stats')) {
+                localStorage.setItem('trendradar_last_stats', JSON.stringify(stats));
+            }
+        });
     } catch (error) { }
 }
 
@@ -894,6 +931,10 @@ function initializeSocket() {
                 const url = new URL(iframe.src);
                 url.searchParams.set('t', Date.now());
                 iframe.src = url.toString();
+                // 生成成功后同步统计量，以便后续点击“刷新视图”能准确计算差异
+                apiFetch('/api/trendradar/stats').then(stats => {
+                    if (stats.success) localStorage.setItem('trendradar_last_stats', JSON.stringify(stats));
+                });
             }
             if (btn) btn.disabled = false;
             if (spinner) spinner.classList.add('d-none');

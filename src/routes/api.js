@@ -125,6 +125,37 @@ router.post('/analysis', authenticateToken, async (req, res) => {
     }
 });
 
+router.get('/trendradar/stats', authenticateToken, (req, res) => {
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const indexPath = path.resolve(__dirname, '../../python_service/TrendRadar/index.html');
+        if (!fs.existsSync(indexPath)) {
+            return res.json({ success: true, newsCount: 0, hotCount: 0, generatedAt: '未知' });
+        }
+        const content = fs.readFileSync(indexPath, 'utf8');
+        // 匹配 HTML 中的统计信息
+        const newsMatch = content.match(/新闻总数<\/span>\s*<span class="info-value">(\[?\d+\]?)\s*条<\/span>/);
+        const hotMatch = content.match(/热点新闻<\/span>\s*<span class="info-value">(\[?\d+\]?)\s*条<\/span>/);
+        const timeMatch = content.match(/生成时间<\/span>\s*<span class="info-value">([^<]+)<\/span>/);
+
+        // 移除可能存在的 [ ] 符号（有时某些字段被这样包裹）
+        const parseCount = (match) => {
+            if (!match) return 0;
+            return parseInt(match[1].replace(/[\[\]]/g, ''));
+        };
+
+        res.json({
+            success: true,
+            newsCount: parseCount(newsMatch),
+            hotCount: parseCount(hotMatch),
+            generatedAt: timeMatch ? timeMatch[1].trim() : '未知'
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 // ==== 全网热点雷达API ====
 router.post('/trendradar/refresh', authenticateToken, async (req, res) => {
     try {

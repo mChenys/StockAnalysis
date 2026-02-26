@@ -111,13 +111,21 @@ class AIStockAnalyzer {
     }
 
     async getStockData(symbol) {
+        let priceData = { symbol, currentPrice: 'N/A', session: '未知' };
         try {
-            const data = await stockCrawler.getRealTimePrice(symbol);
-            const ind = await stockCrawler.getTechnicalIndicators(symbol);
-            return { ...data, indicators: ind };
+            priceData = await stockCrawler.getRealTimePrice(symbol);
         } catch (error) {
-            return { symbol, currentPrice: 'N/A', session: '未知' };
+            logger.warn(`Failed to fetch real-time price for ${symbol}: ${error.message}`);
         }
+
+        let indicators = null;
+        try {
+            indicators = await stockCrawler.getTechnicalIndicators(symbol);
+        } catch (error) {
+            logger.warn(`Failed to fetch technical indicators for ${symbol}: ${error.message}`);
+        }
+
+        return { ...priceData, indicators: indicators };
     }
 
     async prepareAnalysisData(symbol, type, stockData) {

@@ -1108,28 +1108,95 @@ async def agent_chat_stream(req: AgentRequest):
 
 # ─── Direct data endpoints (no LLM needed) ─────────────────
 
+def get_market_session():
+    """Determine market session based on US Eastern time"""
+    try:
+        from datetime import datetime
+        import pytz
+        tz = pytz.timezone('America/New_York')
+        now = datetime.now(tz)
+        hour = now.hour
+        minute = now.minute
+        time_val = hour * 100 + minute
+        
+        if 400 <= time_val < 930:
+            return "盘前"
+        elif 930 <= time_val < 1600:
+            return "盘中"
+        elif 1600 <= time_val < 2000:
+            return "盘后"
+        else:
+            return "休市"
+    except:
+        return "实时"
+
 @app.post("/api/stock/price")
 async def get_stock_price(req: dict):
-    """Direct yfinance price lookup (no LLM)"""
+    """Direct yfinance price lookup (no LLM) with robust fallback and session detection"""
     try:
         import yfinance as yf
         symbol = req.get("symbol", "")
+        if not symbol:
+            raise HTTPException(status_code=400, detail="Symbol is required")
+            
         ticker = yf.Ticker(symbol)
-        info = ticker.info
+        
+        # Try multiple ways to get the price
+        current_price = None
+        previous_close = 0
+        
+        # 1. Try fast_info
+        try:
+            current_price = ticker.fast_info.last_price
+            previous_close = ticker.fast_info.previous_close
+        except:
+            pass
+            
+        # 2. Try info
+        if current_price is None or current_price == 0:
+            try:
+                info = ticker.info
+                current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+                previous_close = info.get("previousClose") or previous_close
+            except:
+                pass
+                
+        # 3. Try history
+        if current_price is None or current_price == 0:
+            try:
+                hist = ticker.history(period="1d")
+                if not hist.empty:
+                    current_price = float(hist["Close"].iloc[-1])
+                    previous_close = float(hist["Open"].iloc[-1])
+            except:
+                pass
+
+        if current_price is None:
+            raise Exception(f"Could not fetch price for {symbol}")
+
+        # Round values for display
+        current_price = round(float(current_price), 2)
+        previous_close = round(float(previous_close), 2)
+        
+        # Calculate change percent
+        change_percent = 0.0
+        if previous_close > 0:
+            change_percent = round((current_price - previous_close) / previous_close * 100, 2)
 
         return {
             "success": True,
             "data": {
                 "symbol": symbol.upper(),
-                "currentPrice": info.get("currentPrice") or info.get("regularMarketPrice", 0),
-                "previousClose": info.get("previousClose", 0),
-                "volume": info.get("volume", 0),
-                "marketCap": info.get("marketCap", 0),
-                "name": info.get("shortName", symbol),
-                "source": "yfinance_direct"
+                "currentPrice": current_price,
+                "previousClose": previous_close,
+                "changePercent": change_percent,
+                "session": get_market_session(),
+                "name": symbol,
+                "source": "yfinance_direct_robust"
             }
         }
     except Exception as e:
+        logger.error(f"Error in /api/stock/price: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/stock/history")
@@ -1140,8 +1207,21 @@ async def get_stock_history(req: dict):
         symbol = req.get("symbol", "")
         period = req.get("period", "1y")
         interval = req.get("interval", "1d")
+        
+        if not symbol:
+            raise HTTPException(status_code=400, detail="Symbol is required")
+            
         ticker = yf.Ticker(symbol)
         hist = ticker.history(period=period, interval=interval)
+        
+        if hist.empty:
+            # Try a smaller period if 1y fails
+            if period == "1y":
+                hist = ticker.history(period="1mo", interval=interval)
+            
+        if hist.empty:
+            return {"success": False, "message": f"No historical data found for {symbol}"}
+            
         data = []
         import pandas as pd
         for index, row in hist.iterrows():
@@ -1149,10 +1229,10 @@ async def get_stock_history(req: dict):
                 continue
             data.append({
                 "date": index.isoformat(),
-                "open": float(row["Open"]),
-                "high": float(row["High"]),
-                "low": float(row["Low"]),
-                "close": float(row["Close"]),
+                "open": round(float(row["Open"]), 2),
+                "high": round(float(row["High"]), 2),
+                "low": round(float(row["Low"]), 2),
+                "close": round(float(row["Close"]), 2),
                 "volume": int(row["Volume"])
             })
         return {"success": True, "data": data}
