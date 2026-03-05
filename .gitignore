@@ -36,11 +36,23 @@ data/
 .vscode/
 .idea/
 
-# Images (generated screenshots)
+# Images (generated screenshots and test images)
 *.png
 *.jpg
 *.jpeg
 *.gif
+
+# Test files and temporary outputs
+tsla_*
+aapl_*
+deposit_*
+final_*
+orders_*
+quant_*
+snapshot*.json
+*_test.png
+*_check.png
+*_debug.json
 
 # Git
 .git/
