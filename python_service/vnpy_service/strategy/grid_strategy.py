@@ -4,7 +4,7 @@
 网格策略是一种被动的量化策略，在设定的价格区间内自动高抛低吸。
 适合震荡行情，通过频繁交易赚取价差。
 """
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from datetime import datetime
 import logging
 

@@ -68,6 +68,11 @@ async function createApp() {
         app.use('/api/quant', require('./routes/quant'));
         app.use('/api', require('./routes/api'));
 
+        // 开发模式状态接口
+        app.get('/api/dev/status', (req, res) => {
+            res.json({ devMode: global.isInMemory });
+        });
+
         // 桥接 VNPY 行情到 Socket.io
         const { getVNPYClient } = require('./services/vnpyClient');
         const vnpyClient = getVNPYClient();
