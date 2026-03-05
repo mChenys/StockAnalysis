@@ -1,1 +1,50 @@
-node_modules
+# Dependencies
+node_modules/
+python_service/venv/
+__pycache__/
+*.pyc
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Large data files
+data/
+*.pkl
+*.faiss
+*.db
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Images (generated screenshots)
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Git
+.git/
+
+# Deployment files
+stockanalysis*.tar.gz
+stockanalysis*.bundle
