@@ -3,3 +3,13 @@ yfinance
 duckduckgo-search
 fastapi
 uvicorn
+
+# VNPY Trading Framework
+vnpy>=4.0.0
+futu-api>=9.6.0
+
+# VNPY Service Dependencies
+pydantic
+pydantic-settings
+httpx
+websockets

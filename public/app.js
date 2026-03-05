@@ -1,6 +1,8 @@
 // AI股票分析系统前端逻辑 - 模型库扩容版 (V1.1.8)
 
 let socket;
+let currentSubscription = null;
+let lastTickValue = null;
 let currentModels = [];
 let currentUser = null;
 let token = localStorage.getItem('token');
@@ -69,14 +71,42 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 async function checkAuth() {
+    // 检查是否为演示模式 token
+    if (token && token.startsWith('demo-token')) {
+        const demoUser = localStorage.getItem('demoUser');
+        if (demoUser) {
+            currentUser = JSON.parse(demoUser);
+        } else {
+            currentUser = {
+                _id: 'demo-user',
+                username: 'demo-user',
+                email: 'demo@example.com',
+                roles: ['user'],
+                active: true
+            };
+        }
+        loadDashboard();
+        showSection('dashboard');
+        showNotification('演示模式', '当前使用演示模式，数据仅存储在本地', 'info');
+        return;
+    }
+    
     // 检查服务器是否为开发模式（无 MongoDB）
     try {
         const devRes = await fetch('/api/dev/status');
         const devData = await devRes.json();
         if (devData.devMode) {
-            // 开发模式：跳过登录，设置 dev token
+            // 开发模式：跳过登录，设置 dev token 和用户信息
             token = 'dev-mode';
             localStorage.setItem('token', token);
+            // 设置开发模式的虚拟用户（管理员）
+            currentUser = {
+                _id: 'dev-admin',
+                username: 'dev-admin',
+                email: 'dev@admin.local',
+                roles: ['admin'],
+                active: true
+            };
             loadDashboard();
             showSection('dashboard');
             return;
@@ -206,6 +236,30 @@ function setupGlobalEventListeners() {
             const mId = target.dataset.nvidiaModelId;
             addNvidiaModel(mId);
         }
+
+        if (target.id === 'refresh-quant-btn' || target.closest('#refresh-quant-btn')) {
+            window.loadQuantInterface();
+        }
+
+        if (target.id === 'add-strategy-btn') {
+            const modal = new bootstrap.Modal(document.getElementById('strategyModal'));
+            modal.show();
+        }
+
+        if (target.id === 'save-strategy-btn') {
+            createStrategy();
+        }
+
+        if (target.id === 'deposit-btn' || target.closest('#deposit-btn')) {
+            const amount = prompt('请输入模拟入金金额 (¥):', '100000');
+            if (amount && !isNaN(amount)) {
+                window.depositFunds(parseFloat(amount));
+            }
+        }
+
+        if (target.id === 'run-backtest-btn' || target.closest('#run-backtest-btn')) {
+            window.runBacktest();
+        }
     });
 
     document.addEventListener('submit', async (e) => {
@@ -214,16 +268,31 @@ function setupGlobalEventListeners() {
         else if (id === 'registerForm') { e.preventDefault(); await handleAuth('/api/auth/register', Object.fromEntries(new FormData(e.target))); }
         else if (id === 'analysis-form') { e.preventDefault(); performAnalysis(); }
         else if (id === 'push-config-form') { e.preventDefault(); savePushConfig(); }
+        else if (id === 'order-form') { e.preventDefault(); window.handleOrderSubmit(e); }
+        else if (id === 'strategy-form') { e.preventDefault(); window.createStrategy(); }
     });
 
     document.addEventListener('change', (e) => {
         if (e.target.id === 'providerSelect') updateModelOptions(e.target.value);
+        if (e.target.id === 'order-gateway') window.loadQuantInterface();
     });
 }
 
 function showSection(name) {
+    // 检查是否已登录（除 auth-section 外都需要登录）
+    if (name !== 'auth-section' && !token) {
+        showAuthOnly();
+        showNotification('提示', '请先登录后再访问该功能', 'warning');
+        return;
+    }
+
+    // 隐藏所有 section - 只使用 display:none
     const sections = document.querySelectorAll('.section');
-    sections.forEach(s => s.style.display = 'none');
+    sections.forEach(s => {
+        s.style.display = 'none';
+    });
+    
+    // 显示目标 section
     const target = document.getElementById(name);
     if (target) {
         if (name === 'trendradar' || name === 'situation') {
@@ -231,17 +300,31 @@ function showSection(name) {
         } else {
             target.style.display = 'block';
         }
+        // 滚动到顶部
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
     }
+    
+    // 更新导航状态
     const navLinks = document.querySelectorAll('.nav-link');
-    navLinks.forEach(l => { l.classList.remove('active'); if (l.dataset.section === name) l.classList.add('active'); });
+    navLinks.forEach(l => { 
+        l.classList.remove('active'); 
+        if (l.dataset.section === name) l.classList.add('active'); 
+    });
+    
+    // 确保侧边栏显示
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) sidebar.style.display = 'block';
+    
+    // 加载对应模块数据
     if (name === 'analysis') loadAnalysisInterface();
     if (name === 'models') loadModels();
     if (name === 'favorites') loadFavorites();
     if (name === 'news') loadNewsFeed();
     if (name === 'trendradar') loadTrendRadarInterface();
     if (name === 'notifications') loadPushConfig();
+    if (name === 'quant') loadQuantInterface();
 }
 
 function updateModelOptions(provider) {
@@ -321,20 +404,146 @@ async function performAnalysis() {
 }
 
 async function handleAuth(url, data) {
+    // 检查是否为 CloudBase 静态托管环境（无后端）
+    const isStaticHosting = window.location.hostname.includes('tcloudbaseapp.com') || 
+                            window.location.hostname.includes('tcb.qcloud.la');
+    
+    if (isStaticHosting) {
+        // 模拟登录/注册（演示模式）
+        simulateAuth(url, data);
+        return;
+    }
+    
     try {
         const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
         const result = await res.json();
         if (result.success) { token = result.data.accessToken; localStorage.setItem('token', token); window.location.reload(); }
         else showNotification('错误', result.message, 'danger');
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+        console.error(e);
+        showNotification('错误', '无法连接到服务器，切换到演示模式', 'warning');
+        // 如果连接失败，也切换到演示模式
+        setTimeout(() => simulateAuth(url, data), 1500);
+    }
+}
+
+function simulateAuth(url, data) {
+    // 演示模式：模拟登录/注册成功
+    const isRegister = url.includes('register');
+    const username = data.username || 'demo-user';
+    
+    // 创建模拟用户
+    currentUser = {
+        _id: 'demo-' + Date.now(),
+        username: username,
+        email: data.email || username + '@demo.com',
+        roles: ['user'],
+        active: true,
+        createdAt: new Date(),
+        lastLogin: new Date()
+    };
+    
+    // 设置模拟 token
+    token = 'demo-token-' + Date.now();
+    localStorage.setItem('token', token);
+    localStorage.setItem('demoUser', JSON.stringify(currentUser));
+    
+    showNotification(
+        '演示模式', 
+        `${isRegister ? '注册' : '登录'}成功（演示模式）\n用户名: ${username}`,
+        'success'
+    );
+    
+    setTimeout(() => window.location.reload(), 1000);
 }
 
 function logout() { localStorage.removeItem('token'); window.location.reload(); }
 async function apiFetch(url, opts = {}) {
+    // 演示模式：返回模拟数据
+    if (token && token.startsWith('demo-token')) {
+        return simulateApiResponse(url, opts);
+    }
+    
     opts.headers = { ...opts.headers, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
     const res = await fetch(url, opts);
     if (res.status === 401) logout();
     return res.json();
+}
+
+function simulateApiResponse(url, opts) {
+    // 演示模式下返回模拟数据
+    const mockResponses = {
+        '/api/dashboard': {
+            success: true,
+            data: {
+                activeModels: 2,
+                todayAnalysis: 5,
+                favoritesCount: 3,
+                tasksCount: 2,
+                taskRunCount: 12,
+                notificationTriggers: 8
+            }
+        },
+        '/api/models': {
+            success: true,
+            data: [
+                { 
+                    name: 'GPT-4o', 
+                    provider: 'OpenAI', 
+                    model: 'gpt-4o', 
+                    active: true,
+                    baseUrl: 'https://api.openai.com/v1',
+                    maxTokens: 4000,
+                    temperature: 0.7
+                },
+                { 
+                    name: 'Claude 3.5 Sonnet', 
+                    provider: 'Anthropic', 
+                    model: 'claude-3-5-sonnet-20240620', 
+                    active: true,
+                    baseUrl: 'https://api.anthropic.com',
+                    maxTokens: 4000,
+                    temperature: 0.7
+                }
+            ]
+        },
+        '/api/favorites': {
+            success: true,
+            data: [
+                { _id: '1', symbol: 'AAPL', title: '苹果公司分析', content: '强势上涨', createdAt: new Date() },
+                { _id: '2', symbol: 'NVDA', title: '英伟达深度研报', content: 'AI龙头', createdAt: new Date() }
+            ]
+        },
+        '/api/news': {
+            success: true,
+            data: [
+                { _id: '1', title: '美联储维持利率不变', source: '财经网', url: '#', publishedAt: new Date() },
+                { _id: '2', title: '科技股集体上涨', source: '华尔街见闻', url: '#', publishedAt: new Date() }
+            ]
+        },
+        '/api/tasks': {
+            success: true,
+            data: [
+                { _id: '1', name: '每日早盘分析', type: 'market_analysis', enabled: true, cronExpression: '0 9 * * *' },
+                { _id: '2', name: '热点雷达扫描', type: 'trendradar_report', enabled: true, cronExpression: '0 */6 * * *' }
+            ]
+        }
+    };
+    
+    // 匹配 URL
+    for (const [pattern, response] of Object.entries(mockResponses)) {
+        if (url.includes(pattern)) {
+            return Promise.resolve(response);
+        }
+    }
+    
+    // POST 请求默认返回成功
+    if (opts.method === 'POST') {
+        return Promise.resolve({ success: true, message: '演示模式：操作成功', data: {} });
+    }
+    
+    // 默认返回空成功响应
+    return Promise.resolve({ success: true, data: [], message: '演示模式：暂无数据' });
 }
 async function loadDashboard() {
     try {
@@ -355,12 +564,22 @@ async function loadDashboard() {
 }
 async function loadModels() {
     try {
-        const models = await apiFetch('/api/models');
+        const result = await apiFetch('/api/models');
         const container = document.getElementById('models-container');
         if (!container) return;
-        if (models.length === 0) { container.innerHTML = '<div class="col-12 text-center py-5">未配置AI模型</div>'; return; }
+        
+        // 处理不同格式的响应
+        const models = Array.isArray(result) ? result : (result.data || []);
+        
+        if (models.length === 0) { 
+            container.innerHTML = '<div class="col-12 text-center py-5 text-muted"><i class="bi bi-cpu fs-1 d-block mb-3 opacity-25"></i>暂无AI模型配置<br><small class="mt-2 d-block">点击右上角"添加模型"按钮开始配置</small></div>'; 
+            return; 
+        }
+        
         container.innerHTML = models.map(m => `<div class="col-lg-4 col-md-6 mb-4"><div class="card card-custom h-100"><div class="card-header bg-transparent d-flex justify-content-between align-items-center"><h6 class="mb-0 fw-bold">${m.name}</h6><div class="badge ${m.active ? 'bg-success' : 'bg-secondary'}">${m.active ? '活跃' : '停用'}</div></div><div class="card-body"><p class="small text-muted mb-3">提供商: ${m.provider}<br>模型: ${m.model}</p><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-primary" data-model-action="test" data-model-name="${m.name}">测试</button><button class="btn btn-sm btn-outline-danger" data-model-action="delete" data-model-name="${m.name}">删除</button></div></div></div></div>`).join('');
-    } catch (e) {}
+    } catch (e) {
+        console.error('Load models error:', e);
+    }
 }
 async function loadAnalysisInterface() {
     const modelSelect = document.getElementById('analysis-model');
@@ -1054,6 +1273,11 @@ function initializeSocket() {
             }
         }
     });
+    socket.on('quote_tick', (tick) => {
+        if (window.renderMarketDepth) {
+            window.renderMarketDepth(tick);
+        }
+    });
 }
 
 async function loadPushConfig() {
@@ -1403,6 +1627,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     iframe.src = currentSrc.toString();
                 }
             }
+            if (section === 'users') {
+                loadUserProfile();
+                loadUsersList();
+            }
         }
     });
 
@@ -1548,4 +1776,789 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // ===================== 用户管理模块 =====================
+
+    // 加载当前用户资料
+    async function loadUserProfile() {
+        try {
+            const res = await apiFetch('/api/users/me');
+            if (res.success && res.data) {
+                const user = res.data;
+                document.getElementById('profile-username').value = user.username || '';
+                document.getElementById('profile-email').value = user.email || '';
+                document.getElementById('profile-roles').value = (user.roles || ['user']).map(r => {
+                    const roleMap = { admin: '管理员', analyst: '分析师', user: '普通用户' };
+                    return roleMap[r] || r;
+                }).join(', ');
+                document.getElementById('profile-display-name').textContent = user.username || '-';
+                document.getElementById('profile-display-role').textContent = (user.roles || ['user']).map(r => {
+                    const roleMap = { admin: '管理员', analyst: '分析师', user: '普通用户' };
+                    return roleMap[r] || r;
+                }).join(', ');
+                document.getElementById('profile-created').value = user.createdAt ? new Date(user.createdAt).toLocaleString() : '-';
+                document.getElementById('profile-lastlogin').value = user.lastLogin ? new Date(user.lastLogin).toLocaleString() : '-';
+            }
+        } catch (err) {
+            showNotification('加载失败', '无法加载用户资料: ' + err.message, 'danger');
+        }
+    }
+
+    // 加载用户列表 (管理员功能)
+    async function loadUsersList(page = 1, limit = 10) {
+        const usersListSection = document.getElementById('users-list-section');
+        if (!usersListSection) return;
+
+        // 检查当前用户是否是管理员
+        if (!currentUser || !currentUser.roles || !currentUser.roles.includes('admin')) {
+            usersListSection.style.display = 'none';
+            return;
+        }
+
+        usersListSection.style.display = 'block';
+
+        try {
+            const res = await apiFetch(`/api/users?page=${page}&limit=${limit}`);
+            const tbody = document.getElementById('users-table-body');
+            if (!tbody) return;
+
+            if (res.success && res.data && res.data.length > 0) {
+                const users = res.data;
+                const pagination = res.pagination;
+                document.getElementById('users-count').textContent = `${pagination.total} 用户`;
+
+                tbody.innerHTML = users.map((u, idx) => {
+                    const rolesHtml = (u.roles || ['user']).map(r => {
+                        const roleClass = { admin: 'bg-danger', analyst: 'bg-info', user: 'bg-secondary' };
+                        const roleLabel = { admin: '管理员', analyst: '分析师', user: '用户' };
+                        return `<span class="badge ${roleClass[r] || 'bg-secondary'} me-1">${roleLabel[r] || r}</span>`;
+                    }).join('');
+
+                    const statusHtml = u.active
+                        ? '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>启用</span>'
+                        : '<span class="badge bg-secondary"><i class="bi bi-x-circle me-1"></i>禁用</span>';
+
+                    return `
+                    <tr>
+                        <td class="ps-3">${(pagination.page - 1) * pagination.limit + idx + 1}</td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-placeholder me-2" style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #4361ee 0%, #3a0ca3 100%); display: flex; align-items: center; justify-content: center;">
+                                    <i class="bi bi-person-fill text-white" style="font-size: 0.9rem;"></i>
+                                </div>
+                                <span class="fw-medium">${u.username}</span>
+                            </div>
+                        </td>
+                        <td><small>${u.email || '-'}</small></td>
+                        <td>${rolesHtml}</td>
+                        <td>${statusHtml}</td>
+                        <td><small class="text-muted">${u.lastLogin ? new Date(u.lastLogin).toLocaleString() : '从未登录'}</small></td>
+                        <td class="pe-3">
+                            <button class="btn btn-sm btn-outline-primary edit-user-btn" data-user-id="${u._id}" title="编辑">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    `;
+                }).join('');
+
+                // 更新分页信息
+                const paginationInfo = document.getElementById('users-pagination-info');
+                if (paginationInfo) {
+                    const start = (pagination.page - 1) * pagination.limit + 1;
+                    const end = Math.min(pagination.page * pagination.limit, pagination.total);
+                    paginationInfo.textContent = `显示 ${start}-${end} 条，共 ${pagination.total} 条`;
+                }
+
+                // 更新分页按钮
+                renderUsersPagination(pagination);
+            } else {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">暂无用户数据</td></tr>';
+            }
+        } catch (err) {
+            showNotification('加载失败', '无法加载用户列表: ' + err.message, 'danger');
+        }
+    }
+
+    // 渲染用户列表分页
+    function renderUsersPagination(pagination) {
+        const paginationList = document.getElementById('users-pagination-list');
+        if (!paginationList) return;
+
+        let html = '';
+        const { page, pages: totalPages } = pagination;
+
+        // 上一页
+        html += `<li class="page-item ${page <= 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" data-page="${page - 1}"><i class="bi bi-chevron-left"></i></a>
+        </li>`;
+
+        // 页码
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= page - 1 && i <= page + 1)) {
+                html += `<li class="page-item ${i === page ? 'active' : ''}">
+                    <a class="page-link" href="#" data-page="${i}">${i}</a>
+                </li>`;
+            } else if (i === page - 2 || i === page + 2) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+        }
+
+        // 下一页
+        html += `<li class="page-item ${page >= totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" data-page="${page + 1}"><i class="bi bi-chevron-right"></i></a>
+        </li>`;
+
+        paginationList.innerHTML = html;
+
+        // 绑定分页点击事件
+        paginationList.querySelectorAll('.page-link[data-page]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const p = parseInt(link.dataset.page);
+                if (p >= 1 && p <= totalPages) {
+                    loadUsersList(p, pagination.limit);
+                }
+            });
+        });
+    }
+
+    // 保存用户资料
+    const profileForm = document.getElementById('profile-form');
+    if (profileForm) {
+        profileForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('profile-username').value.trim();
+            const email = document.getElementById('profile-email').value.trim();
+
+            if (!username) {
+                showNotification('提示', '用户名不能为空', 'warning');
+                return;
+            }
+
+            try {
+                const res = await apiFetch('/api/users/me', {
+                    method: 'PUT',
+                    body: JSON.stringify({ username, email })
+                });
+                if (res.success) {
+                    showNotification('成功', '个人资料已更新', 'success');
+                    // 更新当前用户信息
+                    if (currentUser) {
+                        currentUser.username = username;
+                        currentUser.email = email;
+                    }
+                    document.getElementById('profile-display-name').textContent = username;
+                } else {
+                    showNotification('失败', res.message || '更新失败', 'danger');
+                }
+            } catch (err) {
+                showNotification('失败', err.message, 'danger');
+            }
+        });
+    }
+
+    // 修改密码
+    const passwordForm = document.getElementById('password-form');
+    if (passwordForm) {
+        passwordForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const currentPassword = document.getElementById('current-password').value;
+            const newPassword = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                showNotification('提示', '请填写所有密码字段', 'warning');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                showNotification('提示', '新密码至少需要6个字符', 'warning');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                showNotification('提示', '两次输入的新密码不一致', 'warning');
+                return;
+            }
+
+            try {
+                const res = await apiFetch('/api/users/me/password', {
+                    method: 'PUT',
+                    body: JSON.stringify({ currentPassword, newPassword })
+                });
+                if (res.success) {
+                    showNotification('成功', '密码修改成功，请重新登录', 'success');
+                    // 清空表单
+                    passwordForm.reset();
+                    // 可选：退出登录
+                    setTimeout(() => logout(), 2000);
+                } else {
+                    showNotification('失败', res.message || '密码修改失败', 'danger');
+                }
+            } catch (err) {
+                showNotification('失败', err.message, 'danger');
+            }
+        });
+    }
+
+    // 编辑用户按钮点击
+    document.addEventListener('click', async (e) => {
+        if (e.target.closest('.edit-user-btn')) {
+            const btn = e.target.closest('.edit-user-btn');
+            const userId = btn.dataset.userId;
+            await openEditUserModal(userId);
+        }
+    });
+
+    // 打开编辑用户弹窗
+    async function openEditUserModal(userId) {
+        try {
+            const res = await apiFetch(`/api/users/${userId}`);
+            if (res.success && res.data) {
+                const user = res.data;
+                document.getElementById('edit-user-id').value = user._id;
+                document.getElementById('edit-username').value = user.username;
+                document.getElementById('edit-email').value = user.email || '';
+                document.getElementById('edit-role-admin').checked = (user.roles || []).includes('admin');
+                document.getElementById('edit-role-analyst').checked = (user.roles || []).includes('analyst');
+                document.getElementById('edit-role-user').checked = (user.roles || []).includes('user');
+                document.getElementById('edit-active').checked = user.active !== false;
+
+                const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+                modal.show();
+            }
+        } catch (err) {
+            showNotification('失败', '无法获取用户信息: ' + err.message, 'danger');
+        }
+    }
+
+    // 保存用户编辑
+    const saveUserBtn = document.getElementById('save-user-btn');
+    if (saveUserBtn) {
+        saveUserBtn.addEventListener('click', async () => {
+            const userId = document.getElementById('edit-user-id').value;
+            const email = document.getElementById('edit-email').value.trim();
+            const roles = [];
+            if (document.getElementById('edit-role-admin').checked) roles.push('admin');
+            if (document.getElementById('edit-role-analyst').checked) roles.push('analyst');
+            if (document.getElementById('edit-role-user').checked) roles.push('user');
+            if (roles.length === 0) roles.push('user'); // 至少有一个角色
+
+            const active = document.getElementById('edit-active').checked;
+
+            try {
+                const res = await apiFetch(`/api/users/${userId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ email, roles, active })
+                });
+                if (res.success) {
+                    showNotification('成功', '用户信息已更新', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+                    loadUsersList();
+                } else {
+                    showNotification('失败', res.message || '更新失败', 'danger');
+                }
+            } catch (err) {
+                showNotification('失败', err.message, 'danger');
+            }
+        });
+    }
+
+    // ===================== 量化交易模块 =====================
+    async function loadQuantInterface() {
+        updateVNPYStatus();
+        loadAccountInfo();
+        loadPositions();
+        loadOrders();
+        loadStrategies();
+    }
+
+    async function updateVNPYStatus() {
+        const statusBadge = document.getElementById('vnpy-status');
+        if (!statusBadge) return;
+        try {
+            const res = await apiFetch('/api/quant/status');
+            if (res.success && res.available) {
+                statusBadge.textContent = '服务在线';
+                statusBadge.className = 'badge bg-success me-2';
+            } else {
+                statusBadge.textContent = '服务离线';
+                statusBadge.className = 'badge bg-danger me-2';
+            }
+        } catch (e) {
+            statusBadge.textContent = '服务错误';
+            statusBadge.className = 'badge bg-warning me-2';
+        }
+    }
+
+    async function loadAccountInfo() {
+        const gatewayEl = document.getElementById('order-gateway');
+        if (!gatewayEl) return;
+        const gateway = gatewayEl.value;
+        try {
+            const res = await apiFetch(`/api/quant/account/${gateway}`);
+            if (res.success && res.data) {
+                document.getElementById('account-available').textContent = `¥${(res.data.available || 0).toLocaleString()}`;
+                document.getElementById('account-market-value').textContent = `¥${(res.data.market_value || 0).toLocaleString()}`;
+            }
+        } catch (e) {
+            console.error('Failed to load account info', e);
+        }
+    }
+
+    async function loadPositions() {
+        const gatewayEl = document.getElementById('order-gateway');
+        if (!gatewayEl) return;
+        const gateway = gatewayEl.value;
+        const tbody = document.getElementById('positions-table-body');
+        if (!tbody) return;
+        try {
+            const res = await apiFetch(`/api/quant/positions/${gateway}`);
+            if (res.success && res.data && res.data.length > 0) {
+                tbody.innerHTML = res.data.map(p => `
+                    <tr>
+                        <td class="ps-3 fw-bold">${p.symbol}</td>
+                        <td>${p.volume}</td>
+                        <td>${(p.avg_price || 0).toFixed(2)}</td>
+                        <td>${(p.current_price || 0).toFixed(2)}</td>
+                        <td class="text-end pe-3 ${p.pnl >= 0 ? 'text-success' : 'text-danger'}">${(p.pnl || 0).toFixed(2)}</td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">暂无持仓</td></tr>';
+            }
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-3">加载失败</td></tr>';
+        }
+    }
+
+    async function loadOrders() {
+        const tbody = document.getElementById('orders-table-body');
+        if (!tbody) return;
+        try {
+            const res = await apiFetch('/api/quant/orders');
+            if (res.success && res.data && res.data.length > 0) {
+                tbody.innerHTML = res.data.map(o => `
+                    <tr>
+                        <td class="ps-3 fw-bold">${o.symbol}</td>
+                        <td><span class="badge ${o.direction === 'buy' ? 'bg-success' : 'bg-danger'}">${o.direction === 'buy' ? '买入' : '卖出'}</span></td>
+                        <td>${o.price} / ${o.volume}</td>
+                        <td class="text-end pe-3">
+                            <button class="btn btn-sm btn-outline-danger" onclick="cancelOrder('${o.gateway}', '${o.order_id}')">撤单</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">暂无挂单</td></tr>';
+            }
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-3">加载失败</td></tr>';
+        }
+    }
+
+    async function cancelOrder(gateway, orderId) {
+        if (!confirm('确定要撤销此订单吗？')) return;
+        try {
+            const res = await apiFetch(`/api/quant/order/${gateway}/${orderId}`, { method: 'DELETE' });
+            if (res.success) {
+                showNotification('撤单成功', `订单 ${orderId} 已撤销`, 'success');
+                loadOrders();
+                addLog(`手动撤单成功: ${orderId}`);
+            }
+        } catch (e) {
+            showNotification('撤单失败', e.message, 'danger');
+        }
+    }
+
+    async function loadStrategies() {
+        const tbody = document.getElementById('strategies-table-body');
+        if (!tbody) return;
+        try {
+            const res = await apiFetch('/api/quant/strategies');
+            if (res.success && res.data && res.data.length > 0) {
+                tbody.innerHTML = res.data.map(s => `
+                    <tr>
+                        <td class="ps-3">
+                            <div class="fw-bold">${s.name}</div>
+                            <small class="text-muted">${s.gateway}</small>
+                        </td>
+                        <td>${(s.symbols || []).join(', ')}</td>
+                        <td><span class="badge ${s.status === 'running' ? 'bg-success' : 'bg-secondary'}">${s.status}</span></td>
+                        <td class="text-end pe-3">
+                            ${s.status === 'running'
+                        ? `<button class="btn btn-sm btn-outline-danger me-1" onclick="controlStrategy('${s.name}', 'stop')"><i class="bi bi-stop-fill"></i></button>`
+                        : `<button class="btn btn-sm btn-outline-success me-1" onclick="controlStrategy('${s.name}', 'start')"><i class="bi bi-play-fill"></i></button>`
+                    }
+                            <button class="btn btn-sm btn-outline-info" onclick="viewStrategySignals('${s.name}')"><i class="bi bi-activity"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">暂无已配置策略</td></tr>';
+            }
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4">加载失败</td></tr>';
+        }
+    }
+
+    async function controlStrategy(name, action) {
+        try {
+            showNotification('准备就绪', `正在${action === 'start' ? '启动' : '停止'}策略: ${name}...`, 'info');
+            const res = await apiFetch(`/api/quant/strategies/${name}/${action}`, { method: 'POST' });
+            if (res.success) {
+                showNotification('成功', `策略已${action === 'start' ? '启动' : '停止'}`, 'success');
+                loadStrategies();
+                addLog(`策略 [${name}] 已${action === 'start' ? '启动' : '停止'}`);
+            }
+        } catch (e) {
+            showNotification('失败', e.message, 'danger');
+        }
+    }
+
+    async function viewStrategySignals(name) {
+        try {
+            const res = await apiFetch(`/api/quant/strategies/${name}/signals`);
+            if (res.success && res.data && res.data.signals) {
+                if (res.data.signals.length === 0) {
+                    addLog(`策略 [${name}] 目前还没有产生交易信号`);
+                } else {
+                    res.data.signals.forEach(s => {
+                        addLog(`信号: ${s.timestamp} | ${s.symbol} | ${s.direction} | ${s.price} | 原因是: ${s.reason}`);
+                    });
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function addLog(msg) {
+        const logs = document.getElementById('strategy-logs');
+        if (!logs) return;
+        const div = document.createElement('div');
+        div.textContent = `> [${new Date().toLocaleTimeString()}] ${msg}`;
+        logs.appendChild(div);
+        logs.scrollTop = logs.scrollHeight;
+    }
+
+    async function handleOrderSubmit(e) {
+        e.preventDefault();
+
+        // Client-side validation
+        const gateway = document.getElementById('order-gateway').value;
+        const symbol = document.getElementById('order-symbol').value.trim().toUpperCase();
+        const priceStr = document.getElementById('order-price').value;
+        const volumeStr = document.getElementById('order-volume').value;
+
+        // Validate gateway
+        if (!gateway || !['FUTU', 'OST'].includes(gateway.toUpperCase())) {
+            showNotification('错误', '无效的交易网关', 'danger');
+            return;
+        }
+
+        // Validate symbol
+        if (!symbol || !/^[A-Z][A-Z0-9]{0,9}$/.test(symbol)) {
+            showNotification('错误', '无效的股票代码格式', 'danger');
+            return;
+        }
+
+        // Validate and parse price
+        let price = 0;
+        if (priceStr) {
+            price = parseFloat(priceStr);
+            if (isNaN(price) || price < 0 || price > 10000) {
+                showNotification('错误', '价格必须是非负数且不超过10,000', 'danger');
+                return;
+            }
+        }
+
+        // Validate and parse volume
+        let volume = parseInt(volumeStr);
+        if (isNaN(volume) || volume <= 0 || volume > 1000000) {
+            showNotification('错误', '数量必须是正数且不超过1,000,000', 'danger');
+            return;
+        }
+
+        const data = {
+            gateway: gateway,
+            symbol: symbol,
+            direction: document.querySelector('input[name="order-direction"]:checked').value,
+            orderType: document.getElementById('order-type').value,
+            price: price,
+            volume: volume
+        };
+
+        try {
+            const res = await apiFetch('/api/quant/order', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            if (res.success) {
+                showNotification('订单已提交', `ID: ${res.data.vt_orderid || '已模拟'}`, 'success');
+                addLog(`手动下单成功: ${data.direction} ${data.symbol} ${data.volume}股 @${data.price}`);
+                setTimeout(() => {
+                    loadAccountInfo();
+                    loadPositions();
+                }, 1000);
+            } else {
+                showNotification('下单失败', res.detail || res.message || '未知错误', 'danger');
+                addLog(`下单被拒绝: ${data.symbol} - ${res.detail || '代码验证失败'}`);
+            }
+        } catch (e) {
+            showNotification('网络错误', e.message, 'danger');
+            addLog(`网络故障: ${e.message}`);
+        }
+    }
+
+    async function createStrategy() {
+        // Client-side validation
+        const name = document.getElementById('strategy-name').value.trim();
+        const gateway = document.getElementById('strategy-gateway').value;
+        const symbolsStr = document.getElementById('strategy-symbols').value;
+        const stopLossStr = document.getElementById('strategy-stoploss').value;
+
+        // Validate name
+        if (!name || name.length < 2 || name.length > 50) {
+            showNotification('错误', '策略名称长度应在2-50字符之间', 'danger');
+            return;
+        }
+
+        // Validate gateway
+        if (!gateway || !['FUTU', 'OST'].includes(gateway.toUpperCase())) {
+            showNotification('错误', '无效的交易网关', 'danger');
+            return;
+        }
+
+        // Validate symbols
+        const symbols = symbolsStr.split(',').map(s => s.trim()).filter(s => s);
+        if (!symbols || symbols.length === 0 || symbols.length > 10) {
+            showNotification('错误', '请提供1-10个交易标的', 'danger');
+            return;
+        }
+
+        // Validate symbols format
+        for (const symbol of symbols) {
+            if (!/^[A-Z][A-Z0-9]{0,9}$/.test(symbol)) {
+                showNotification('错误', `无效的股票代码格式: ${symbol}`, 'danger');
+                return;
+            }
+        }
+
+        // Validate stop loss
+        let stop_loss = null;
+        if (stopLossStr) {
+            stop_loss = parseFloat(stopLossStr);
+            if (isNaN(stop_loss) || stop_loss < 0 || stop_loss > 1) {
+                showNotification('错误', '止损比例必须在0-1之间', 'danger');
+                return;
+            }
+        }
+
+        const data = {
+            name: name,
+            gateway: gateway,
+            symbols: symbols,
+            params: {
+                model: document.getElementById('strategy-model').value,
+                stop_loss: stop_loss
+            }
+        };
+
+        try {
+            const res = await apiFetch('/api/quant/strategies', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            if (res.success) {
+                showNotification('成功', '策略创建成功', 'success');
+                const modalEl = document.getElementById('strategyModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+                loadStrategies();
+                addLog(`新策略 [${data.name}] 已创建`);
+            }
+        } catch (e) {
+            showNotification('失败', e.message, 'danger');
+        }
+    }
+
+    async function depositFunds() {
+        const gatewayEl = document.getElementById('order-gateway');
+        if (!gatewayEl) return;
+
+        const gateway = gatewayEl.value;
+        if (!gateway || !['FUTU', 'OST'].includes(gateway.toUpperCase())) {
+            showNotification('错误', '无效的交易网关', 'danger');
+            return;
+        }
+
+        const rawAmount = prompt('请输入模拟入金金额 (¥):', '100000');
+
+        if (!rawAmount) return; // User cancelled
+
+        const amount = parseFloat(rawAmount);
+        if (isNaN(amount) || amount <= 0 || amount > 10000000) { // Max 10M deposit
+            showNotification('错误', '请输入有效的金额（正数，不超过10,000,000）', 'danger');
+            return;
+        }
+
+        try {
+            const res = await apiFetch('/api/quant/account/deposit', {
+                method: 'POST',
+                body: JSON.stringify({ gateway, amount })
+            });
+            if (res.success) {
+                showNotification('入金成功', `已存入 ¥${amount.toLocaleString()}`, 'success');
+                loadAccountInfo();
+                addLog(`模拟入金成功: ¥${amount.toLocaleString()}`);
+            }
+        } catch (e) {
+            showNotification('入金失败', e.message, 'danger');
+        }
+    }
+
+    async function runBacktest() {
+        const btn = document.getElementById('run-backtest-btn');
+        const container = document.getElementById('bt-results-container');
+        const placeholder = document.getElementById('bt-results-placeholder');
+
+        const params = {
+            strategy_name: document.getElementById('bt-strategy').value,
+            symbol: document.getElementById('bt-symbol').value,
+            start_date: document.getElementById('bt-start').value,
+            end_date: document.getElementById('bt-end').value,
+            capital: parseFloat(document.getElementById('bt-capital').value)
+        };
+
+        if (!params.symbol) {
+            showNotification('提示', '请输入回测标的', 'warning');
+            return;
+        }
+
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 正在计算...';
+
+            const res = await apiFetch('/api/quant/backtest/run', {
+                method: 'POST',
+                body: JSON.stringify(params)
+            });
+
+            if (res.success) {
+                placeholder.classList.add('d-none');
+                container.classList.remove('d-none');
+
+                const data = res.data;
+                document.getElementById('bt-total-return').textContent = `${data.total_return}%`;
+                document.getElementById('bt-annual-return').textContent = `${data.annual_return}%`;
+                document.getElementById('bt-max-drawdown').textContent = `${data.max_drawdown}%`;
+                document.getElementById('bt-sharpe').textContent = data.sharpe_ratio;
+                document.getElementById('bt-trades').textContent = data.total_trades;
+                document.getElementById('bt-profit-trades').textContent = data.profit_trades;
+                document.getElementById('bt-loss-trades').textContent = data.loss_trades;
+
+                showNotification('回测完成', '分析结果已生成', 'success');
+                addLog(`策略回测完成 [${params.strategy_name}]: 收益率 ${data.total_return}%`);
+            }
+        } catch (e) {
+            showNotification('回测失败', e.message, 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-play-circle-fill"></i> 开始回测';
+        }
+    }
+
+    // 5档行情渲染与点击填充
+    window.renderMarketDepth = function (tick) {
+        const symbolInput = document.getElementById('order-symbol');
+        if (!symbolInput || symbolInput.value.toUpperCase() !== tick.symbol) return;
+
+        const container = document.getElementById('market-depth-container');
+        if (container) container.style.display = 'block';
+
+        const askBody = document.getElementById('ask-depth-body');
+        const bidBody = document.getElementById('bid-depth-body');
+
+        if (askBody) {
+            let askHtml = '';
+            for (let i = 5; i >= 1; i--) {
+                const price = tick[`ask_price_${i}`];
+                const volume = tick[`ask_volume_${i}`];
+                if (price > 0) {
+                    askHtml += `
+                        <tr>
+                            <td class="text-danger small py-0">卖${i}</td>
+                            <td class="depth-price depth-sell py-0" onclick="fillOrderPrice(${price})">${price.toFixed(2)}</td>
+                            <td class="depth-vol text-end py-0">${volume}</td>
+                        </tr>`;
+                }
+            }
+            askBody.innerHTML = askHtml;
+        }
+
+        if (bidBody) {
+            let bidHtml = '';
+            for (let i = 1; i <= 5; i++) {
+                const price = tick[`bid_price_${i}`];
+                const volume = tick[`bid_volume_${i}`];
+                if (price > 0) {
+                    bidHtml += `
+                        <tr>
+                            <td class="text-success small py-0">买${i}</td>
+                            <td class="depth-price depth-buy py-0" onclick="fillOrderPrice(${price})">${price.toFixed(2)}</td>
+                            <td class="depth-vol text-end py-0">${volume}</td>
+                        </tr>`;
+                }
+            }
+            bidBody.innerHTML = bidHtml;
+        }
+
+        // 自动更新价格（如果价格还是0且是市价以外）
+        const priceInput = document.getElementById('order-price');
+        if (priceInput && (parseFloat(priceInput.value) === 0 || !priceInput.value) && tick.last_price) {
+            // 只有第一次加载时自动填入现价
+            if (!lastTickValue) {
+                // priceInput.value = tick.last_price;
+            }
+        }
+        lastTickValue = tick;
+    };
+
+    window.fillOrderPrice = function (price) {
+        const priceInput = document.getElementById('order-price');
+        if (priceInput) {
+            priceInput.value = price;
+            priceInput.classList.add('bg-warning-soft');
+            setTimeout(() => priceInput.classList.remove('bg-warning-soft'), 500);
+        }
+    };
+
+    // 监听股票代码输入
+    const symbolInput = document.getElementById('order-symbol');
+    if (symbolInput) {
+        let timer;
+        symbolInput.addEventListener('input', (e) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                const symbol = e.target.value.toUpperCase().trim();
+                const gateway = document.getElementById('order-gateway').value;
+                if (symbol && symbol.length >= 1 && socket) {
+                    console.log('Subscribing to:', symbol);
+                    socket.emit('subscribe_quote', { gateway, symbols: [symbol] });
+                    currentSubscription = symbol;
+                }
+            }, 800);
+        });
+    }
+
+    // 暴露出一些函数给 HTML 中的 onclick 使用
+    window.controlStrategy = controlStrategy;
+    window.viewStrategySignals = viewStrategySignals;
+    window.loadQuantInterface = loadQuantInterface;
+    window.cancelOrder = cancelOrder;
+    window.handleOrderSubmit = handleOrderSubmit;
+    window.createStrategy = createStrategy;
+    window.depositFunds = depositFunds;
+    window.runBacktest = runBacktest;
 });

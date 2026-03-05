@@ -50,6 +50,14 @@ async function createApp() {
                     socket.emit('analysis_error', { message: error.message });
                 }
             });
+            socket.on('subscribe_quote', async (data) => {
+                try {
+                    const vnpy = getVNPYClient();
+                    vnpy.subscribeQuotes(data.gateway, data.symbols);
+                } catch (error) {
+                    logger.error(`Failed to subscribe quote: ${error.message}`);
+                }
+            });
         });
 
         app.use('/api/auth', require('./routes/auth'));
@@ -57,7 +65,18 @@ async function createApp() {
         app.use('/api/news', require('./routes/news'));
         app.use('/api/agent', require('./routes/agent'));
         app.use('/api/tasks', require('./routes/tasks'));
+        app.use('/api/quant', require('./routes/quant'));
         app.use('/api', require('./routes/api'));
+
+        // 桥接 VNPY 行情到 Socket.io
+        const { getVNPYClient } = require('./services/vnpyClient');
+        const vnpyClient = getVNPYClient();
+        vnpyClient.on('tick', (tick) => {
+            if (global.io) {
+                logger.info(`Emitting quote_tick for ${tick.symbol}: ${tick.last_price}`);
+                global.io.emit('quote_tick', tick);
+            }
+        });
 
         app.get('/', (req, res) => {
             res.sendFile(path.join(__dirname, '../public/index.html'));

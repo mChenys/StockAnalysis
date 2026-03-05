@@ -7,6 +7,51 @@ const logger = require('../utils/logger');
 router.get('/', authenticateToken, authorize('admin'), async (req, res) => {
     try {
         const { page = 1, limit = 20, role, active } = req.query;
+
+        // 开发模式：返回模拟用户列表
+        if (global.isInMemory) {
+            const mockUsers = [
+                {
+                    _id: 'dev-admin',
+                    username: 'dev-admin',
+                    email: 'dev@admin.local',
+                    roles: ['admin'],
+                    active: true,
+                    createdAt: new Date('2024-01-01'),
+                    lastLogin: new Date()
+                },
+                {
+                    _id: 'demo-analyst',
+                    username: 'analyst',
+                    email: 'analyst@example.com',
+                    roles: ['analyst'],
+                    active: true,
+                    createdAt: new Date('2024-02-15'),
+                    lastLogin: new Date('2024-03-01')
+                },
+                {
+                    _id: 'demo-user',
+                    username: 'testuser',
+                    email: 'user@example.com',
+                    roles: ['user'],
+                    active: true,
+                    createdAt: new Date('2024-03-10'),
+                    lastLogin: null
+                }
+            ];
+
+            return res.json({
+                success: true,
+                data: mockUsers,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total: mockUsers.length,
+                    pages: 1
+                }
+            });
+        }
+
         const skip = (page - 1) * limit;
 
         const query = {};
@@ -46,6 +91,23 @@ router.get('/', authenticateToken, authorize('admin'), async (req, res) => {
 
 router.get('/me', authenticateToken, async (req, res) => {
     try {
+        // 开发模式：返回虚拟用户信息
+        if (global.isInMemory && req.user._id === 'dev-admin') {
+            return res.json({
+                success: true,
+                data: {
+                    _id: 'dev-admin',
+                    username: 'dev-admin',
+                    email: 'dev@admin.local',
+                    roles: ['admin'],
+                    active: true,
+                    createdAt: new Date(),
+                    lastLogin: new Date(),
+                    preferences: { theme: 'light', notifications: true, language: 'zh-CN' }
+                }
+            });
+        }
+
         const user = await User.findById(req.user._id);
 
         if (!user) {
@@ -71,6 +133,21 @@ router.get('/me', authenticateToken, async (req, res) => {
 router.get('/:userId', authenticateToken, authorize('admin'), async (req, res) => {
     try {
         const { userId } = req.params;
+
+        // 开发模式：返回模拟用户数据
+        if (global.isInMemory) {
+            const mockUsers = {
+                'dev-admin': { _id: 'dev-admin', username: 'dev-admin', email: 'dev@admin.local', roles: ['admin'], active: true },
+                'demo-analyst': { _id: 'demo-analyst', username: 'analyst', email: 'analyst@example.com', roles: ['analyst'], active: true },
+                'demo-user': { _id: 'demo-user', username: 'testuser', email: 'user@example.com', roles: ['user'], active: true }
+            };
+            const user = mockUsers[userId];
+            if (user) {
+                return res.json({ success: true, data: user });
+            }
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
         const user = await User.findById(userId);
 
         if (!user) {
@@ -96,6 +173,23 @@ router.get('/:userId', authenticateToken, authorize('admin'), async (req, res) =
 router.put('/me', authenticateToken, async (req, res) => {
     try {
         const { username, email, preferences } = req.body;
+
+        // 开发模式：返回成功模拟响应
+        if (global.isInMemory && req.user._id === 'dev-admin') {
+            return res.json({
+                success: true,
+                message: 'Profile updated successfully',
+                data: {
+                    _id: 'dev-admin',
+                    username: username || 'dev-admin',
+                    email: email || 'dev@admin.local',
+                    roles: ['admin'],
+                    active: true,
+                    preferences: preferences || { theme: 'light', notifications: true, language: 'zh-CN' }
+                }
+            });
+        }
+
         const user = await User.findById(req.user._id);
 
         if (!user) {
@@ -134,6 +228,16 @@ router.put('/me', authenticateToken, async (req, res) => {
 router.put('/me/password', authenticateToken, async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
+
+        // 开发模式：返回成功模拟响应
+        if (global.isInMemory && req.user._id === 'dev-admin') {
+            // 开发模式下任何密码都可以
+            return res.json({
+                success: true,
+                message: 'Password updated successfully'
+            });
+        }
+
         const user = await User.findById(req.user._id);
 
         if (!user) {
@@ -178,6 +282,22 @@ router.put('/:userId', authenticateToken, authorize('admin'), async (req, res) =
             return res.status(400).json({
                 success: false,
                 message: 'Cannot modify your own account through this endpoint'
+            });
+        }
+
+        // 开发模式：返回成功模拟响应
+        if (global.isInMemory) {
+            return res.json({
+                success: true,
+                message: 'User updated successfully',
+                data: {
+                    _id: userId,
+                    username: 'mock-user',
+                    email: 'mock@example.com',
+                    roles: roles || ['user'],
+                    active: active !== undefined ? active : true,
+                    preferences: preferences || {}
+                }
             });
         }
 

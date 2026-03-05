@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AI-powered real-time stock analysis system with multi-model AI support, news monitoring, technical analysis, and WeChat push notifications.
+AI-powered real-time stock analysis system with multi-model AI support, news monitoring, technical analysis, and WeChat push notifications. The system integrates Node.js backend with Python services for comprehensive financial data analysis and intelligent reporting.
 
 ## Development Commands
 
@@ -30,72 +30,224 @@ npm run build        # Install production dependencies
 npm run pm2:start    # Start with PM2
 npm run pm2:restart  # Restart PM2 process
 npm run pm2:stop     # Stop PM2 process
+
+# Python Service
+cd python_service && source venv/bin/activate  # Activate Python environment
+python -m TrendRadar  # Run TrendRadar service
 ```
 
 ## Architecture
 
+### System Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Node.js Backend                        │
+│  ┌─────────┐  ┌──────────┐  ┌──────────┐  ┌─────────────┐  │
+│  │ Express │  │WebSocket │  │ Scheduler│  │  AI Models  │  │
+│  │  Server │  │  Server  │  │ (Cron)   │  │  Manager    │  │
+│  └────┬────┘  └────┬─────┘  └────┬─────┘  └──────┬──────┘  │
+│       │            │             │               │         │
+│       └────────────┴─────────────┴───────────────┘         │
+│                          │                                  │
+│  ┌───────────────────────┴───────────────────────────────┐ │
+│  │                    MongoDB / In-Memory                 │ │
+│  └───────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Python Services                          │
+│  ┌──────────────────┐  ┌──────────────────────────────┐    │
+│  │   TrendRadar     │  │  Agno Agent (yfinance)       │    │
+│  │  News Aggregator │  │  Enhanced Stock Analysis     │    │
+│  └──────────────────┘  └──────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
 ### Core Components
 
-- **`src/app.js`** - Application entry point, Express server setup, WebSocket initialization
-- **`src/ai/modelManager.js`** - AI model registry supporting OpenAI-compatible APIs (OpenAI, NVIDIA NIM, etc.)
-- **`src/analyzer/aiAnalyzer.js`** - 9-dimension stock analysis engine (technical, fundamental, sentiment, risk, macro, competition, short/long-term, advice)
-- **`src/agent/stockAgent.js`** - Conversational AI agent with tool-calling capabilities (stock prices, technical indicators, news search)
-- **`src/scheduler/taskScheduler.js`** - Cron-based task scheduling (market analysis, news monitoring, health checks)
+| Component | File | Description |
+|-----------|------|-------------|
+| Application Entry | `src/app.js` | Express server setup, WebSocket initialization, middleware config |
+| AI Model Manager | `src/ai/modelManager.js` | Multi-provider model registry (OpenAI, NVIDIA NIM, etc.) |
+| Stock Analyzer | `src/analyzer/aiAnalyzer.js` | 9-dimension analysis engine |
+| AI Agent | `src/agent/stockAgent.js` | Conversational agent with tool-calling |
+| Task Scheduler | `src/scheduler/taskScheduler.js` | Cron-based task management |
+| Python Client | `src/services/pythonClient.js` | Bridge to Python services |
 
-### Data Layer
+### AI Model Manager (`src/ai/modelManager.js`)
 
-- **`src/database/connection.js`** - MongoDB connection with automatic in-memory fallback when MongoDB unavailable
-- **Models**: `ModelConfig`, `NewsItem`, `User`, `Task`, `Favorite`, `Topic`, `AgentSession`
+Manages multiple AI providers through a unified interface:
 
-### Routes Structure
+```javascript
+// Key APIs
+modelManager.loadModels()     // Sync models from MongoDB
+modelManager.addModel(config) // Add new model configuration
+modelManager.callModel(prompt, modelId) // Execute AI call
+modelManager.getModels()      // Get all available models
+```
 
-- `/api/auth` - Authentication (JWT-based)
-- `/api/users` - User management
-- `/api/news` - News operations
-- `/api/agent` - AI Agent chat endpoint
-- `/api/tasks` - Scheduled task management
-- `/api/models` - AI model CRUD operations
-- `/api/analysis` - Stock analysis endpoints
-- `/api/trendradar` - TrendRadar Python service integration
+**Supported Providers**: OpenAI, NVIDIA NIM, OpenRouter, any OpenAI-compatible API
 
-### Python Service
+### 9-Dimension Stock Analyzer (`src/analyzer/aiAnalyzer.js`)
 
-Located in `python_service/`:
-- **TrendRadar** - Financial news aggregation and analysis
-- **Agno Agent** - Enhanced AI agent with yfinance integration
-- Uses virtual environment at `python_service/venv/`
+| Dimension | Description |
+|-----------|-------------|
+| Technical | Price patterns, indicators (RSI, MACD, MA) |
+| Fundamental | Financial metrics, P/E, revenue growth |
+| Sentiment | Market sentiment, news analysis |
+| Risk | Volatility, downside analysis |
+| Macro | Economic factors, industry trends |
+| Competition | Peer comparison, market position |
+| Short-term | Near-term price prediction |
+| Long-term | Long-term investment outlook |
+| Advice | Actionable investment recommendations |
 
-## Key Patterns
+### AI Agent (`src/agent/stockAgent.js`)
 
-### Dual-Mode Operation
-The system operates in two modes:
-1. **MongoDB mode** - Full persistence when MongoDB is available
-2. **In-memory mode** - Automatic fallback for development without MongoDB
+Conversational agent with tool-calling capabilities:
 
-Check `global.isInMemory` to handle data storage appropriately.
+```javascript
+// Available Tools
+tools.getStockPrice(symbol)      // Real-time stock prices
+tools.getTechnicalIndicators(symbol) // Technical analysis
+tools.searchNews(query)          // News search
+tools.analyzeStock(params)       // Comprehensive analysis
+```
 
-### AI Model Configuration
-Models are stored in MongoDB and cached in memory. Use `modelManager.loadModels()` to sync. Models must have: `name`, `provider`, `model`, `apiKey`, `baseUrl` (for custom endpoints).
-
-### WebSocket Events
-- `analysis_result` - Stock analysis completed
-- `trendradar_status` - TrendRadar generation progress
-- `model_status_changed` - Model added/updated/deleted
-
-### Agent Tool-Calling Flow
-The agent uses a custom tool-calling protocol:
+**Tool-Calling Protocol**:
 1. LLM outputs `TOOL_CALL_START\n[{tool, args}]\nTOOL_CALL_END`
 2. System executes tools and returns data
 3. LLM generates final analysis based on real data
 
+### Task Scheduler (`src/scheduler/taskScheduler.js`)
+
+Cron-based scheduling for automated tasks:
+
+| Task | Schedule | Description |
+|------|----------|-------------|
+| Pre-market Analysis | Before market open | Daily market outlook |
+| Intraday Monitor | Every 30min during market | Price alerts, news |
+| Post-market Summary | After market close | Daily recap |
+| Weekly Report | Weekend | Weekly analysis |
+| Health Check | Every 5min | System health monitoring |
+
+### Data Layer
+
+**Database Connection** (`src/database/connection.js`):
+- MongoDB primary with automatic in-memory fallback
+- Check `global.isInMemory` for current mode
+
+**Data Models**:
+
+| Model | File | Key Fields |
+|-------|------|------------|
+| User | `models/User.js` | username, email, password, role, preferences |
+| ModelConfig | `models/ModelConfig.js` | name, provider, model, apiKey, baseUrl, maxTokens |
+| AgentSession | `models/AgentSession.js` | sessionId, userId, title, messages[] |
+| Favorite | `models/Favorite.js` | userId, type, symbol, title, content |
+| NewsItem | `models/NewsItem.js` | sourceId, url, title, content, publishedAt |
+| Task | `models/Task.js` | userId, name, type, cronExpression, enabled |
+| Topic | `models/Topic.js` | name, relevance, relatedSymbols[] |
+
+### Routes Structure
+
+```
+/api
+├── /auth          # Authentication (JWT-based)
+│   ├── POST /login
+│   ├── POST /register
+│   └── POST /logout
+├── /users         # User management
+├── /news          # News operations
+│   ├── GET /list
+│   └── POST /refresh
+├── /agent         # AI Agent chat
+│   └── POST /chat
+├── /tasks         # Scheduled tasks CRUD
+├── /models        # AI model management
+├── /analysis      # Stock analysis
+│   ├── POST /stock/:symbol
+│   └── POST /batch
+└── /trendradar    # Python service integration
+    ├── POST /generate
+    └── GET /status
+```
+
+### Python Services
+
+Located in `python_service/`:
+
+**TrendRadar** - Financial news aggregation and analysis:
+- Multi-source news fetching (Sina, EastMoney, etc.)
+- AI-powered sentiment analysis
+- Report generation (HTML, Markdown, DingTalk)
+- Push notifications (WeChat, DingTalk, Feishu)
+
+**Agno Agent** - Enhanced AI agent:
+- yfinance integration for real-time data
+- Advanced technical analysis
+- Natural language querying
+
+## Key Patterns
+
+### Dual-Mode Operation
+
+```javascript
+// Check current mode
+if (global.isInMemory) {
+  // Use in-memory storage
+} else {
+  // Use MongoDB
+}
+```
+
+### WebSocket Events
+
+| Event | Description | Payload |
+|-------|-------------|---------|
+| `analysis_result` | Stock analysis completed | `{ symbol, result }` |
+| `trendradar_status` | Report generation progress | `{ progress, message }` |
+| `model_status_changed` | Model config updated | `{ action, model }` |
+
+### Error Handling
+
+```javascript
+// Centralized error handler
+app.use((err, req, res, next) => {
+  logger.error('Request error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error'
+  });
+});
+```
+
 ## Environment Variables
 
-See `.env.example` for required configuration:
-- `MONGODB_URI` - MongoDB connection (optional, falls back to in-memory)
-- `PORT` - Server port (default: 3000)
-- AI API keys for various providers
-- WeChat push notification credentials
-- `JWT_SECRET` - JWT signing secret
+```bash
+# Server
+PORT=3000
+NODE_ENV=development
+
+# Database
+MONGODB_URI=mongodb://localhost:27017/stockanalysis  # Optional
+
+# Authentication
+JWT_SECRET=your-jwt-secret
+
+# AI Providers (configure via API or .env)
+OPENAI_API_KEY=sk-...
+NVIDIA_API_KEY=nvapi-...
+
+# WeChat Push
+WECHAT_CORPID=...
+WECHAT_CORPSECRET=...
+WECHAT_AGENTID=...
+
+# Python Service
+PYTHON_SERVICE_URL=http://localhost:5001
+```
 
 ## Code Style
 
@@ -105,3 +257,58 @@ See `.env.example` for required configuration:
 - Async/await preferred over callbacks
 - Winston for logging (`src/utils/logger.js`)
 - JSDoc comments for functions
+
+## File Structure
+
+```
+src/
+├── app.js                 # Application entry
+├── ai/
+│   └── modelManager.js    # AI model management
+├── analyzer/
+│   └── aiAnalyzer.js      # Stock analysis engine
+├── agent/
+│   └── stockAgent.js      # Conversational AI agent
+├── database/
+│   ├── connection.js      # MongoDB connection
+│   └── models/            # Mongoose models
+├── routes/
+│   └── api.js             # API routes
+├── scheduler/
+│   └── taskScheduler.js   # Cron tasks
+├── services/
+│   └── pythonClient.js    # Python service client
+├── utils/
+│   └── logger.js          # Winston logger
+└── public/                # Static files
+
+python_service/
+├── venv/                  # Python virtual environment
+├── TrendRadar/            # News aggregation service
+└── main.py                # Python entry point
+```
+
+## Testing
+
+```bash
+# Run all tests
+npm test
+
+# Run specific test file
+npx jest tests/models.test.js
+
+# Run with coverage
+npm test -- --coverage
+```
+
+## Deployment
+
+```bash
+# PM2 deployment
+npm run pm2:start
+npm run pm2:restart
+npm run pm2:stop
+
+# View logs
+pm2 logs stockanalysis
+```

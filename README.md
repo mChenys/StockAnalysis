@@ -192,3 +192,82 @@ MIT License
 ## ⚠️ 免责声明
 
 本系统仅供学习和研究使用，不构成投资建议。投资有风险，请谨慎决策。
+
+## 🚀 CloudBase 部署信息
+
+### 部署状态
+
+- **环境 ID**: `test-3gj6hf8n9547bbc0`
+- **区域**: `ap-shanghai`
+- **部署日期**: 2026-03-04
+
+### 前端访问地址
+
+🌐 **Web 应用**: https://test-3gj6hf8n9547bbc0-1257106486.tcloudbaseapp.com/
+
+已部署的前端文件：
+- `index.html` - 主页面
+- `agent.html` - AI Agent 页面
+- `app.js` - 前端应用脚本
+
+### 后端部署说明
+
+后端使用 CloudBase Run（容器模式）部署，包含以下特性：
+- Node.js Express 应用
+- WebSocket 实时通信
+- AI 模型管理
+- 9 维度股票分析
+
+**部署方式**：
+由于后端服务需要构建 Docker 镜像，建议使用以下方式部署：
+
+1. **控制台部署**（推荐）：
+   - 访问 CloudBase 控制台：https://tcb.cloud.tencent.com/dev?envId=test-3gj6hf8n9547bbc0#/platform-run
+   - 点击"新建服务" → 选择"容器服务"
+   - 上传代码或连接 Git 仓库
+   - 配置资源规格（建议：CPU 0.5核，内存 1GB）
+
+2. **CLI 部署**：
+   ```bash
+   # 安装 CloudBase CLI
+   npm install -g @cloudbase/cli
+   
+   # 登录
+   tcb login
+   
+   # 部署
+   tcb fn deploy stock-analysis-backend --runtime Nodejs18.13
+   ```
+
+### 环境变量配置
+
+后端需要配置以下环境变量：
+
+```bash
+NODE_ENV=production
+PORT=3000
+MONGODB_URI=<your-mongodb-uri>
+JWT_SECRET=<your-jwt-secret>
+OPENAI_API_KEY=<your-openai-key>
+NVIDIA_API_KEY=<your-nvidia-key>
+WECHAT_CORPID=<your-wechat-corpid>
+WECHAT_CORPSECRET=<your-wechat-secret>
+WECHAT_AGENTID=<your-wechat-agentid>
+```
+
+### CloudBase 资源
+
+已启用的 CloudBase 服务：
+- ✅ 静态网站托管
+- ✅ 云托管（待部署）
+- ✅ 数据库（MySQL）
+- ✅ 云存储
+- ✅ 云函数
+
+### 控制台入口
+
+- **概览**: https://tcb.cloud.tencent.com/dev?envId=test-3gj6hf8n9547bbc0#/overview
+- **云托管**: https://tcb.cloud.tencent.com/dev?envId=test-3gj6hf8n9547bbc0#/platform-run
+- **静态托管**: https://tcb.cloud.tencent.com/dev?envId=test-3gj6hf8n9547bbc0#/static-hosting
+- **数据库**: https://tcb.cloud.tencent.com/dev?envId=test-3gj6hf8n9547bbc0#/db/mysql/table/default/
+- **云函数**: https://tcb.cloud.tencent.com/dev?envId=test-3gj6hf8n9547bbc0#/scf

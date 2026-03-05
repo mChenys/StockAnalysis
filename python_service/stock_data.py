@@ -35,12 +35,29 @@ def _set_cached(key: str, data: Any):
 def get_stock_price(symbol: str) -> Dict[str, Any]:
     """Get real-time stock price and basic info."""
     cache_key = f"price_{symbol}"
-    cached = _get_cached(cache_key)
-    if cached:
-        return cached
+    
+    # Check if it's a weekend
+    from datetime import datetime
+    now_dt = datetime.now()
+    is_weekend = now_dt.weekday() >= 5 # 5=Sat, 6=Sun
+    ttl = 3600 if is_weekend else CACHE_TTL
+    
+    # Try cache first
+    cached_entry = _cache.get(cache_key)
+    if cached_entry:
+        if time.time() - cached_entry["ts"] < ttl:
+             return cached_entry["data"]
 
-    ticker = yf.Ticker(symbol)
-    info = ticker.info
+    try:
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+    except Exception as e:
+        logger.error(f"yfinance error for {symbol}: {e}")
+        # Fallback to expired cache if available
+        if cache_key in _cache:
+            logger.info(f"Using stale cache for {symbol} due to error")
+            return _cache[cache_key]["data"]
+        raise e
 
     # Determine market session based on US Eastern time
     now_et = datetime.now()
