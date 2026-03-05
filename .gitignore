@@ -57,6 +57,9 @@ snapshot*.json
 # Git
 .git/
 
+# External repositories (submodules)
+repos/
+
 # Deployment files
 stockanalysis*.tar.gz
 stockanalysis*.bundle
