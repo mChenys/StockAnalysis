@@ -3,6 +3,8 @@ yfinance
 duckduckgo-search
 fastapi
 uvicorn
+requests
+pytz
 
 # VNPY Trading Framework
 vnpy>=4.0.0

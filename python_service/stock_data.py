@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 import logging
 import time
+import requests
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,68 @@ def _set_cached(key: str, data: Any):
 
 # ─── Real-time Price ────────────────────────────────────────
 
+def get_stock_price_fallback(symbol: str) -> Dict[str, Any]:
+    """Fallback to Yahoo Finance HTTP API when yfinance fails (rate limited)."""
+    cache_key = f"price_{symbol}"
+    
+    try:
+        # Yahoo Finance quote summary API (v10)
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        
+        result = data["chart"]["result"][0]
+        meta = result["meta"]
+        quote = result.get("indicators", {}).get("quote", [{}])[0]
+        
+        current_price = meta.get("regularMarketPrice", 0)
+        prev_close = meta.get("previousClose", 0)
+        
+        # Calculate change percent
+        change_percent = 0.0
+        if prev_close and prev_close > 0 and current_price:
+            change_percent = round((current_price - prev_close) / prev_close * 100, 2)
+        
+        # Get high/low from ohlc
+        high = max(quote.get("high", [current_price])) if quote.get("high") else current_price
+        low = min(quote.get("low", [current_price])) if quote.get("low") else current_price
+        volume = quote.get("volume", [0])[-1] if quote.get("volume") else 0
+        
+        result_data = {
+            "symbol": symbol.upper(),
+            "currentPrice": current_price,
+            "previousClose": prev_close,
+            "changePercent": change_percent,
+            "session": "盘中" if current_price else "未知",
+            "high": high,
+            "low": low,
+            "volume": volume,
+            "marketCap": 0,
+            "name": symbol,
+            "sector": "N/A",
+            "industry": "N/A",
+            "pe_ratio": None,
+            "forward_pe": None,
+            "dividend_yield": None,
+            "fifty_two_week_high": None,
+            "fifty_two_week_low": None,
+            "timestamp": datetime.now().isoformat(),
+            "source": "yahoo_http"
+        }
+        
+        _set_cached(cache_key, result_data)
+        logger.info(f"[Fallback] Got price for {symbol} via Yahoo HTTP API")
+        return result_data
+        
+    except Exception as e:
+        logger.error(f"[Fallback] Yahoo HTTP API failed for {symbol}: {e}")
+        raise e
+
+
 def get_stock_price(symbol: str) -> Dict[str, Any]:
     """Get real-time stock price and basic info."""
     cache_key = f"price_{symbol}"
@@ -52,24 +116,31 @@ def get_stock_price(symbol: str) -> Dict[str, Any]:
         ticker = yf.Ticker(symbol)
         info = ticker.info
     except Exception as e:
-        logger.error(f"yfinance error for {symbol}: {e}")
-        # Fallback to expired cache if available
-        if cache_key in _cache:
-            logger.info(f"Using stale cache for {symbol} due to error")
-            return _cache[cache_key]["data"]
-        raise e
+        logger.warning(f"yfinance error for {symbol}: {e}, trying fallback...")
+        try:
+            # Try fallback Yahoo HTTP API
+            return get_stock_price_fallback(symbol)
+        except Exception as fallback_error:
+            logger.error(f"Fallback also failed for {symbol}: {fallback_error}")
+            # Fallback to expired cache if available
+            if cache_key in _cache:
+                logger.info(f"Using stale cache for {symbol} due to error")
+                return _cache[cache_key]["data"]
+            raise fallback_error
 
-    # Determine market session based on US Eastern time
-    now_et = datetime.now()
-    hour = now_et.hour
-    if 4 <= hour < 9:
-        session = "盘前"
-    elif 9 <= hour < 16:
-        session = "盘中"
-    elif 16 <= hour < 20:
-        session = "盘后"
-    else:
-        session = "休市"
+        # Determine market session based on US Eastern time
+        import pytz
+        et = pytz.timezone('US/Eastern')
+        now_et = datetime.now(et)
+        hour = now_et.hour
+        if 4 <= hour < 9:
+            session = "盘前"
+        elif 9 <= hour < 16:
+            session = "盘中"
+        elif 16 <= hour < 20:
+            session = "盘后"
+        else:
+            session = "休市"
 
     current_price = info.get("currentPrice") or info.get("regularMarketPrice", 0)
     prev_close = info.get("previousClose") or info.get("regularMarketPreviousClose", 0)
