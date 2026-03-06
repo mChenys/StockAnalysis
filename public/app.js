@@ -71,6 +71,32 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 async function checkAuth() {
+    // 首先检查服务器是否为开发模式（无 MongoDB）
+    try {
+        const devRes = await fetch('/api/dev/status');
+        const devData = await devRes.json();
+        if (devData.devMode) {
+            // 开发模式：清除旧数据，设置 dev token 和用户信息
+            localStorage.clear();
+            token = 'dev-mode';
+            localStorage.setItem('token', token);
+            // 设置开发模式的虚拟用户（管理员）
+            currentUser = {
+                _id: 'dev-admin',
+                username: 'dev-admin',
+                email: 'dev@admin.local',
+                roles: ['admin'],
+                active: true
+            };
+            loadDashboard();
+            showSection('dashboard');
+            showNotification('开发模式', '无需登录，直接使用系统', 'success');
+            return;
+        }
+    } catch (e) {
+        console.error('Failed to check dev status:', e);
+    }
+    
     // 检查是否为演示模式 token
     if (token && token.startsWith('demo-token')) {
         const demoUser = localStorage.getItem('demoUser');
