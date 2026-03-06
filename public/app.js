@@ -469,7 +469,13 @@ async function apiFetch(url, opts = {}) {
     
     opts.headers = { ...opts.headers, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
     const res = await fetch(url, opts);
-    if (res.status === 401) logout();
+    if (res.status === 401) {
+        logout();
+        throw new Error('Authentication failed');
+    }
+    if (!res.ok) {
+        throw new Error(`API request failed: ${res.status}`);
+    }
     return res.json();
 }
 
@@ -582,6 +588,10 @@ async function loadModels() {
         container.innerHTML = models.map(m => `<div class="col-lg-4 col-md-6 mb-4"><div class="card card-custom h-100"><div class="card-header bg-transparent d-flex justify-content-between align-items-center"><h6 class="mb-0 fw-bold">${m.name}</h6><div class="badge ${m.active ? 'bg-success' : 'bg-secondary'}">${m.active ? '活跃' : '停用'}</div></div><div class="card-body"><p class="small text-muted mb-3">提供商: ${m.provider}<br>模型: ${m.model}</p><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-primary" data-model-action="test" data-model-name="${m.name}">测试</button><button class="btn btn-sm btn-outline-danger" data-model-action="delete" data-model-name="${m.name}">删除</button></div></div></div></div>`).join('');
     } catch (e) {
         console.error('Load models error:', e);
+        const container = document.getElementById('models-container');
+        if (container) {
+            container.innerHTML = '<div class="col-12 text-center py-5 text-danger"><i class="bi bi-exclamation-triangle fs-1 d-block mb-3"></i>加载模型失败<br><small class="mt-2 d-block">请检查网络连接或联系管理员</small></div>';
+        }
     }
 }
 async function loadAnalysisInterface() {
