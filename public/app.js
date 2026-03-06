@@ -724,6 +724,16 @@ async function loadFavorites() {
     container.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>';
     try {
         const res = await apiFetch('/api/favorites');
+        // Handle case where apiFetch returns undefined (e.g., on 401 redirect)
+        if (!res) {
+            container.innerHTML = '<div class="col-12 text-center py-5 text-muted">请重新登录</div>';
+            return;
+        }
+        // Handle API error response
+        if (!res.success) {
+            container.innerHTML = `<div class="col-12 text-center py-5 text-muted">加载失败: ${res.message || '未知错误'}</div>`;
+            return;
+        }
         if (res.success && res.data) {
             if (res.data.length === 0) {
                 container.innerHTML = '<div class="col-12 text-center py-5 text-muted"><i class="bi bi-star fs-1 d-block mb-3 opacity-25"></i>暂无收藏内容</div>';
