@@ -1130,41 +1130,52 @@ def get_market_session():
     except:
         return "实时"
 
-def get_yahoo_http_fallback(symbol: str) -> dict:
-    """Fallback to Yahoo Finance HTTP API when yfinance fails."""
+def get_sina_fallback(symbol: str) -> dict:
+    """Fallback to Sina Finance API when yfinance fails."""
     import requests
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    import re
+    
+    # Convert symbol to Sina format (gb_ prefix for US stocks)
+    sina_symbol = f"gb_{symbol.lower()}"
+    url = f"https://hq.sinajs.cn/list={sina_symbol}"
+    headers = {
+        "Referer": "https://finance.sina.com.cn",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+    
     resp = requests.get(url, headers=headers, timeout=10)
     resp.raise_for_status()
-    data = resp.json()
     
-    result = data["chart"]["result"][0]
-    meta = result["meta"]
-    quote = result.get("indicators", {}).get("quote", [{}])[0]
+    # Parse Sina response: var hq_str_gb_mstr="MSTR,139.8100,-4.53,..."
+    text = resp.text
+    match = re.search(r'var hq_str_\w+="([^"]*)"', text)
+    if not match:
+        raise Exception("Failed to parse Sina response")
     
-    current_price = meta.get("regularMarketPrice", 0) or meta.get("previousClose", 0)
-    prev_close = meta.get("previousClose", 0)
+    parts = match.group(1).split(",")
+    if len(parts) < 10:
+        raise Exception(f"Invalid Sina data format: {parts}")
     
-    change_percent = 0.0
-    if prev_close and prev_close > 0 and current_price:
-        change_percent = round((current_price - prev_close) / prev_close * 100, 2)
-    
-    high = max(quote.get("high", [current_price])) if quote.get("high") else current_price
-    low = min(quote.get("low", [current_price])) if quote.get("low") else current_price
-    volume = quote.get("volume", [0])[-1] if quote.get("volume") else 0
+    # Sina format: name, current_price, change_percent, date_time, change_amount, 
+    #              open, high, low, 52w_high, 52w_low, volume, volume2, market_cap, ...
+    current_price = float(parts[1]) if parts[1] else 0
+    change_percent = float(parts[2]) if parts[2] else 0
+    prev_close = current_price / (1 + change_percent/100) if change_percent != 0 else current_price
+    high = float(parts[6]) if len(parts) > 6 and parts[6] else current_price
+    low = float(parts[7]) if len(parts) > 7 and parts[7] else current_price
+    volume = int(float(parts[10])) if len(parts) > 10 and parts[10] else 0
     
     return {
         "success": True,
         "data": {
             "symbol": symbol.upper(),
-            "currentPrice": current_price,
-            "previousClose": prev_close,
-            "changePercent": change_percent,
+            "currentPrice": round(current_price, 2),
+            "previousClose": round(prev_close, 2),
+            "changePercent": round(change_percent, 2),
             "volume": volume,
             "session": get_market_session(),
-            "name": symbol,
-            "source": "yahoo_http_fallback"
+            "name": parts[0] if parts[0] else symbol,
+            "source": "sina_fallback"
         }
     }
 
@@ -1245,12 +1256,12 @@ async def get_stock_price(req: dict):
             }
         }
     except Exception as e:
-        logger.warning(f"yfinance failed for {symbol}: {e}, trying HTTP fallback...")
+        logger.warning(f"yfinance failed for {symbol}: {e}, trying Sina fallback...")
         try:
-            # Fallback to Yahoo HTTP API
-            return get_yahoo_http_fallback(symbol)
+            # Fallback to Sina Finance API
+            return get_sina_fallback(symbol)
         except Exception as fallback_error:
-            logger.error(f"Fallback also failed for {symbol}: {fallback_error}")
+            logger.error(f"Sina fallback also failed for {symbol}: {fallback_error}")
             raise HTTPException(status_code=500, detail=f"Could not fetch price for {symbol}")
 
 @app.post("/api/stock/history")
