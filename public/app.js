@@ -680,18 +680,42 @@ async function refreshTrendRadar() {
 
 
 async function saveToFavorites() {
-    if (!lastAnalysisResult) return;
-    const res = await apiFetch('/api/favorites', {
-        method: 'POST',
-        body: JSON.stringify({
-            type: 'stock_analysis',
-            symbol: lastAnalysisResult.symbol,
-            title: `${lastAnalysisResult.symbol} 全维研报`,
-            content: lastAnalysisResult.analysis,
-            analysisData: lastAnalysisResult.rawData
-        })
-    });
-    if (res.success) { showNotification('成功', '研报已存入收藏夹', 'success'); document.getElementById('save-to-favorites-btn').classList.add('d-none'); }
+    if (!lastAnalysisResult) {
+        showNotification('错误', '没有可收藏的研报数据，请先进行分析', 'warning');
+        return;
+    }
+    
+    const favBtn = document.getElementById('save-to-favorites-btn');
+    if (favBtn.disabled) return; // 防止重复点击
+    
+    favBtn.disabled = true;
+    favBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 保存中...';
+    
+    try {
+        const res = await apiFetch('/api/favorites', {
+            method: 'POST',
+            body: JSON.stringify({
+                type: 'stock_analysis',
+                symbol: lastAnalysisResult.symbol,
+                title: `${lastAnalysisResult.symbol} 全维研报`,
+                content: lastAnalysisResult.analysis,
+                analysisData: lastAnalysisResult.rawData
+            })
+        });
+        
+        if (res.success) {
+            showNotification('成功', '研报已存入收藏夹', 'success');
+            favBtn.classList.add('d-none');
+        } else {
+            showNotification('失败', res.message || '收藏失败，请重试', 'danger');
+            favBtn.disabled = false;
+            favBtn.innerHTML = '<i class="bi bi-star"></i> 收藏';
+        }
+    } catch (e) {
+        showNotification('错误', '网络请求失败: ' + e.message, 'danger');
+        favBtn.disabled = false;
+        favBtn.innerHTML = '<i class="bi bi-star"></i> 收藏';
+    }
 }
 
 async function loadFavorites() {
