@@ -64,6 +64,18 @@ window.removeNewsTag = function (tag) {
 document.addEventListener('DOMContentLoaded', function() {
     setupGlobalEventListeners();
     window.renderNewsTags();
+    
+    // 自动配置 API 基础 URL（解决前后端分离部署问题）
+    const baseUrlInput = document.getElementById('baseUrl');
+    if (baseUrlInput && !baseUrlInput.value) {
+        // 检测当前页面是否在 CloudBase，如果是则设置 Lighthouse 后端地址
+        const currentHost = window.location.hostname;
+        if (currentHost.includes('tcloudbaseapp.com')) {
+            baseUrlInput.value = 'http://49.234.184.83:3000';
+            console.log('Auto-configured API base URL for Lighthouse backend');
+        }
+    }
+    
     checkAuth();
     if (typeof initializeSocket === 'function') {
         initializeSocket();
