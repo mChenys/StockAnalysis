@@ -306,7 +306,9 @@ function setupGlobalEventListeners() {
 
 function showSection(name) {
     // 检查是否已登录（除 auth-section 外都需要登录）
-    if (name !== 'auth-section' && !token) {
+    // 同时检查全局变量和 localStorage，确保异步初始化后也能正常工作
+    const currentToken = token || localStorage.getItem('token');
+    if (name !== 'auth-section' && !currentToken) {
         showAuthOnly();
         showNotification('提示', '请先登录后再访问该功能', 'warning');
         return;
