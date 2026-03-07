@@ -391,7 +391,12 @@ async function performAnalysis() {
     if (!symbol || !modelName) return;
     spinner?.classList.remove('d-none');
     if (btn) btn.disabled = true;
-    favBtn?.classList.add('d-none');
+    // 重置收藏按钮状态
+    if (favBtn) {
+        favBtn.classList.add('d-none');
+        favBtn.disabled = false;
+        favBtn.innerHTML = '<i class="bi bi-star"></i> 收藏';
+    }
     resultContainer.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-3 fw-bold">正在拉取多维实时数据并生成深度研报...</p></div>';
     try {
         const response = await apiFetch('/api/analysis', { method: 'POST', body: JSON.stringify({ symbol, modelName }) });
