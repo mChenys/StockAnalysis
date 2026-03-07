@@ -20,6 +20,7 @@ import uvicorn
 import httpx
 import yfinance as yf
 from fastapi import WebSocket, WebSocketDisconnect, Query, HTTPException
+from datetime import datetime
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
@@ -1264,18 +1265,122 @@ async def get_stock_price(req: dict):
             logger.error(f"Sina fallback also failed for {symbol}: {fallback_error}")
             raise HTTPException(status_code=500, detail=f"Could not fetch price for {symbol}")
 
+# ─── Historical Data Cache ──────────────────────────────────
+_history_cache = {}
+_HISTORY_CACHE_TTL = 300  # 5 minutes cache for history data
+
+def _get_cached_history(cache_key: str):
+    """Get cached historical data if not expired."""
+    entry = _history_cache.get(cache_key)
+    if entry and (time.time() - entry["ts"] < _HISTORY_CACHE_TTL):
+        return entry["data"]
+    return None
+
+def _set_cached_history(cache_key: str, data: list):
+    """Cache historical data with timestamp."""
+    _history_cache[cache_key] = {"data": data, "ts": time.time()}
+
+def _is_rate_limit_error(error_msg: str) -> bool:
+    """Check if error is rate limit related."""
+    rate_limit_keywords = [
+        "too many requests", "rate limited", "429", 
+        "forbidden", "unauthorized", "503", "blocked"
+    ]
+    return any(keyword in error_msg.lower() for keyword in rate_limit_keywords)
+
+def _get_history_from_yahoo_http(symbol: str, period: str = "1y", interval: str = "1d") -> list:
+    """Fallback to Yahoo Finance HTTP API for historical data."""
+    # Map period to range parameter
+    period_map = {
+        "1d": "1d", "5d": "5d", "1mo": "1mo", "3mo": "3mo",
+        "6mo": "6mo", "1y": "1y", "2y": "2y", "5y": "5y", "max": "max"
+    }
+    range_param = period_map.get(period, "1y")
+    
+    # Map interval
+    interval_map = {
+        "1m": "1m", "2m": "2m", "5m": "5m", "15m": "15m", "30m": "30m",
+        "60m": "60m", "90m": "90m", "1h": "1h", "1d": "1d", "5d": "5d",
+        "1wk": "1wk", "1mo": "1mo", "3mo": "3mo"
+    }
+    interval_param = interval_map.get(interval, "1d")
+    
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+    params = {
+        "interval": interval_param,
+        "range": range_param,
+        "includeAdjustedClose": "true"
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+    }
+    
+    resp = requests.get(url, params=params, headers=headers, timeout=15)
+    resp.raise_for_status()
+    
+    data = resp.json()
+    result = data.get("chart", {}).get("result", [None])[0]
+    
+    if not result:
+        raise ValueError(f"No data returned from Yahoo HTTP API for {symbol}")
+    
+    timestamps = result.get("timestamp", [])
+    quote = result.get("indicators", {}).get("quote", [{}])[0]
+    adjclose = result.get("indicators", {}).get("adjclose", [{}])[0]
+    
+    opens = quote.get("open", [])
+    highs = quote.get("high", [])
+    lows = quote.get("low", [])
+    closes = quote.get("close", [])
+    volumes = quote.get("volume", [])
+    adj_closes = adjclose.get("adjclose", []) if adjclose else []
+    
+    history_data = []
+    for i, ts in enumerate(timestamps):
+        if i >= len(closes) or closes[i] is None:
+            continue
+        
+        dt = datetime.fromtimestamp(ts)
+        history_data.append({
+            "date": dt.isoformat(),
+            "open": round(float(opens[i]), 2) if i < len(opens) and opens[i] is not None else None,
+            "high": round(float(highs[i]), 2) if i < len(highs) and highs[i] is not None else None,
+            "low": round(float(lows[i]), 2) if i < len(lows) and lows[i] is not None else None,
+            "close": round(float(closes[i]), 2),
+            "volume": int(volumes[i]) if i < len(volumes) and volumes[i] is not None else 0,
+            "adjClose": round(float(adj_closes[i]), 2) if i < len(adj_closes) and adj_closes[i] is not None else None
+        })
+    
+    logger.info(f"[History Fallback] Got {len(history_data)} records for {symbol} via Yahoo HTTP API")
+    return history_data
+
+
 @app.post("/api/stock/history")
 async def get_stock_history(req: dict):
-    """Direct yfinance historical data lookup"""
+    """Direct yfinance historical data lookup with fallback and caching."""
+    symbol = req.get("symbol", "")
+    period = req.get("period", "1y")
+    interval = req.get("interval", "1d")
+    
+    if not symbol:
+        raise HTTPException(status_code=400, detail="Symbol is required")
+    
+    # Normalize symbol
+    symbol = symbol.upper().strip()
+    cache_key = f"history_{symbol}_{period}_{interval}"
+    
+    # Check cache first
+    cached_data = _get_cached_history(cache_key)
+    if cached_data:
+        logger.info(f"[History Cache] Returning cached data for {symbol}")
+        return {"success": True, "data": cached_data, "source": "cache"}
+    
+    errors = []
+    
+    # Try 1: yfinance library
     try:
         import yfinance as yf
-        symbol = req.get("symbol", "")
-        period = req.get("period", "1y")
-        interval = req.get("interval", "1d")
-        
-        if not symbol:
-            raise HTTPException(status_code=400, detail="Symbol is required")
-            
         ticker = yf.Ticker(symbol)
         hist = ticker.history(period=period, interval=interval)
         
@@ -1283,27 +1388,75 @@ async def get_stock_history(req: dict):
             # Try a smaller period if 1y fails
             if period == "1y":
                 hist = ticker.history(period="1mo", interval=interval)
+        
+        if not hist.empty:
+            data = []
+            import pandas as pd
+            for index, row in hist.iterrows():
+                if pd.isna(row["Close"]):
+                    continue
+                data.append({
+                    "date": index.isoformat(),
+                    "open": round(float(row["Open"]), 2) if pd.notna(row["Open"]) else None,
+                    "high": round(float(row["High"]), 2) if pd.notna(row["High"]) else None,
+                    "low": round(float(row["Low"]), 2) if pd.notna(row["Low"]) else None,
+                    "close": round(float(row["Close"]), 2),
+                    "volume": int(row["Volume"]) if pd.notna(row["Volume"]) else 0
+                })
             
-        if hist.empty:
-            return {"success": False, "message": f"No historical data found for {symbol}"}
+            # Cache the result
+            _set_cached_history(cache_key, data)
+            logger.info(f"[History] Got {len(data)} records for {symbol} via yfinance")
+            return {"success": True, "data": data, "source": "yfinance"}
+        else:
+            errors.append("yfinance returned empty data")
             
-        data = []
-        import pandas as pd
-        for index, row in hist.iterrows():
-            if pd.isna(row["Close"]):
-                continue
-            data.append({
-                "date": index.isoformat(),
-                "open": round(float(row["Open"]), 2),
-                "high": round(float(row["High"]), 2),
-                "low": round(float(row["Low"]), 2),
-                "close": round(float(row["Close"]), 2),
-                "volume": int(row["Volume"])
-            })
-        return {"success": True, "data": data}
     except Exception as e:
-        logger.error(f"Error fetching history for {req.get('symbol')}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_msg = str(e)
+        errors.append(f"yfinance: {error_msg}")
+        logger.warning(f"[History] yfinance failed for {symbol}: {error_msg}")
+        
+        # Check if it's a rate limit error
+        if _is_rate_limit_error(error_msg):
+            logger.warning(f"[History] Rate limit detected for {symbol}, will try fallback")
+    
+    # Try 2: Yahoo Finance HTTP API (fallback for rate limits)
+    try:
+        data = _get_history_from_yahoo_http(symbol, period, interval)
+        if data:
+            _set_cached_history(cache_key, data)
+            return {"success": True, "data": data, "source": "yahoo_http_fallback"}
+    except Exception as e:
+        error_msg = str(e)
+        errors.append(f"yahoo_http: {error_msg}")
+        logger.warning(f"[History] Yahoo HTTP fallback failed for {symbol}: {error_msg}")
+    
+    # All methods failed
+    error_summary = "; ".join(errors)
+    logger.error(f"[History] All methods failed for {symbol}: {error_summary}")
+    
+    # Return user-friendly error
+    is_rate_limited = any(_is_rate_limit_error(err) for err in errors)
+    if is_rate_limited:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Rate limit exceeded",
+                "message": f"Data provider is temporarily rate limited for {symbol}. Please try again in a few minutes.",
+                "symbol": symbol,
+                "suggestion": "Try again later or use a different stock symbol"
+            }
+        )
+    else:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Data unavailable",
+                "message": f"Could not fetch historical data for {symbol}. The stock may be delisted or data temporarily unavailable.",
+                "symbol": symbol,
+                "errors": errors
+            }
+        )
 
 
 @app.post("/api/stock/ma_cross")
