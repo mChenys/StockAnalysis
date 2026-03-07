@@ -1316,10 +1316,10 @@ def _get_history_from_yahoo_http(symbol: str, period: str = "1y", interval: str 
         "Accept": "application/json"
     }
     
-    resp = requests.get(url, params=params, headers=headers, timeout=15)
-    resp.raise_for_status()
-    
-    data = resp.json()
+    with httpx.Client(timeout=15) as client:
+        resp = client.get(url, params=params, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
     result = data.get("chart", {}).get("result", [None])[0]
     
     if not result:
