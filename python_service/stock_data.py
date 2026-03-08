@@ -1,6 +1,7 @@
 """
-Stock Data Service — powered by yfinance
+Stock Data Service — powered by yfinance with akshare fallback
 Provides reliable stock data fetching with caching and error handling.
+Multi-source fallback strategy: yfinance -> akshare -> Yahoo HTTP API
 """
 
 import yfinance as yf
@@ -12,6 +13,14 @@ import logging
 import time
 import requests
 import json
+
+# Akshare fallback support
+try:
+    import akshare as ak
+    AKSHARE_AVAILABLE = True
+except ImportError:
+    AKSHARE_AVAILABLE = False
+    logging.warning("akshare not installed, fallback to yfinance only")
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +105,76 @@ def get_stock_price_fallback(symbol: str) -> Dict[str, Any]:
         raise e
 
 
+def get_stock_price_from_akshare(symbol: str) -> Dict[str, Any]:
+    """Get stock price from akshare as fallback (free, no rate limit).
+    
+    Uses stock_us_daily API which is fast and stable.
+    """
+    if not AKSHARE_AVAILABLE:
+        raise ImportError("akshare not available")
+    
+    cache_key = f"price_{symbol}"
+    
+    try:
+        # 使用 stock_us_daily 接口 - 更稳定
+        df = ak.stock_us_daily(symbol=symbol, adjust='qfq')
+        
+        if df is None or df.empty:
+            raise ValueError(f"No data found for {symbol} in akshare")
+        
+        # 获取最新数据
+        last_row = df.iloc[-1]
+        current_price = float(last_row.get('close', 0))
+        prev_close = float(df.iloc[-2].get('close', current_price)) if len(df) > 1 else current_price
+        
+        change_percent = 0.0
+        if prev_close > 0:
+            change_percent = round((current_price - prev_close) / prev_close * 100, 2)
+        
+        # 判断市场状态
+        today = datetime.now().strftime('%Y-%m-%d')
+        last_date = str(last_row.get('date', ''))
+        session = "盘中" if last_date == today else "休市"
+        
+        result_data = {
+            "symbol": symbol.upper(),
+            "currentPrice": current_price,
+            "previousClose": prev_close,
+            "changePercent": change_percent,
+            "session": session,
+            "high": float(last_row.get('high', current_price)),
+            "low": float(last_row.get('low', current_price)),
+            "volume": int(last_row.get('volume', 0)),
+            "marketCap": 0,
+            "name": symbol,
+            "sector": "N/A",
+            "industry": "N/A",
+            "pe_ratio": None,
+            "forward_pe": None,
+            "dividend_yield": None,
+            "fifty_two_week_high": None,
+            "fifty_two_week_low": None,
+            "timestamp": datetime.now().isoformat(),
+            "source": "akshare"
+        }
+        
+        _set_cached(cache_key, result_data)
+        logger.info(f"[Akshare] Got price for {symbol}: ${current_price:.2f}")
+        return result_data
+        
+    except Exception as e:
+        logger.error(f"[Akshare] Failed for {symbol}: {e}")
+        raise e
+
+
 def get_stock_price(symbol: str) -> Dict[str, Any]:
-    """Get real-time stock price and basic info."""
+    """Get real-time stock price and basic info.
+    
+    Multi-source fallback strategy:
+    1. yfinance (primary)
+    2. akshare (fallback, free, no rate limit)
+    3. Yahoo HTTP API (last resort)
+    """
     cache_key = f"price_{symbol}"
     
     # Check if it's a weekend
@@ -112,22 +189,11 @@ def get_stock_price(symbol: str) -> Dict[str, Any]:
         if time.time() - cached_entry["ts"] < ttl:
              return cached_entry["data"]
 
+    # ─── Source 1: yfinance (primary) ─────────────────────────────
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.info
-    except Exception as e:
-        logger.warning(f"yfinance error for {symbol}: {e}, trying fallback...")
-        try:
-            # Try fallback Yahoo HTTP API
-            return get_stock_price_fallback(symbol)
-        except Exception as fallback_error:
-            logger.error(f"Fallback also failed for {symbol}: {fallback_error}")
-            # Fallback to expired cache if available
-            if cache_key in _cache:
-                logger.info(f"Using stale cache for {symbol} due to error")
-                return _cache[cache_key]["data"]
-            raise fallback_error
-
+        
         # Determine market session based on US Eastern time
         import pytz
         et = pytz.timezone('US/Eastern')
@@ -142,96 +208,206 @@ def get_stock_price(symbol: str) -> Dict[str, Any]:
         else:
             session = "休市"
 
-    current_price = info.get("currentPrice") or info.get("regularMarketPrice", 0)
-    prev_close = info.get("previousClose") or info.get("regularMarketPreviousClose", 0)
+        current_price = info.get("currentPrice") or info.get("regularMarketPrice", 0)
+        prev_close = info.get("previousClose") or info.get("regularMarketPreviousClose", 0)
 
-    change_percent = 0.0
-    if prev_close and prev_close > 0:
-        change_percent = round((current_price - prev_close) / prev_close * 100, 2)
+        change_percent = 0.0
+        if prev_close and prev_close > 0:
+            change_percent = round((current_price - prev_close) / prev_close * 100, 2)
 
-    result = {
-        "symbol": symbol.upper(),
-        "currentPrice": current_price,
-        "previousClose": prev_close,
-        "changePercent": change_percent,
-        "session": session,
-        "high": info.get("dayHigh") or info.get("regularMarketDayHigh", 0),
-        "low": info.get("dayLow") or info.get("regularMarketDayLow", 0),
-        "volume": info.get("volume") or info.get("regularMarketVolume", 0),
-        "marketCap": info.get("marketCap", 0),
-        "name": info.get("shortName", symbol),
-        "sector": info.get("sector", "N/A"),
-        "industry": info.get("industry", "N/A"),
-        "pe_ratio": info.get("trailingPE", None),
-        "forward_pe": info.get("forwardPE", None),
-        "dividend_yield": info.get("dividendYield", None),
-        "fifty_two_week_high": info.get("fiftyTwoWeekHigh", None),
-        "fifty_two_week_low": info.get("fiftyTwoWeekLow", None),
-        "timestamp": datetime.now().isoformat(),
-        "source": "yfinance"
-    }
+        result = {
+            "symbol": symbol.upper(),
+            "currentPrice": current_price,
+            "previousClose": prev_close,
+            "changePercent": change_percent,
+            "session": session,
+            "high": info.get("dayHigh") or info.get("regularMarketDayHigh", 0),
+            "low": info.get("dayLow") or info.get("regularMarketDayLow", 0),
+            "volume": info.get("volume") or info.get("regularMarketVolume", 0),
+            "marketCap": info.get("marketCap", 0),
+            "name": info.get("shortName", symbol),
+            "sector": info.get("sector", "N/A"),
+            "industry": info.get("industry", "N/A"),
+            "pe_ratio": info.get("trailingPE", None),
+            "forward_pe": info.get("forwardPE", None),
+            "dividend_yield": info.get("dividendYield", None),
+            "fifty_two_week_high": info.get("fiftyTwoWeekHigh", None),
+            "fifty_two_week_low": info.get("fiftyTwoWeekLow", None),
+            "timestamp": datetime.now().isoformat(),
+            "source": "yfinance"
+        }
 
-    _set_cached(cache_key, result)
-    return result
+        _set_cached(cache_key, result)
+        return result
+        
+    except Exception as e:
+        logger.warning(f"[yfinance] Failed for {symbol}: {e}, trying akshare...")
+    
+    # ─── Source 2: akshare (fallback, free) ─────────────────────────────
+    if AKSHARE_AVAILABLE:
+        try:
+            return get_stock_price_from_akshare(symbol)
+        except Exception as e:
+            logger.warning(f"[akshare] Failed for {symbol}: {e}, trying Yahoo HTTP...")
+    
+    # ─── Source 3: Yahoo HTTP API (last resort) ─────────────────────────────
+    try:
+        return get_stock_price_fallback(symbol)
+    except Exception as e:
+        logger.error(f"[Yahoo HTTP] Failed for {symbol}: {e}")
+        
+        # Fallback to expired cache if available
+        if cache_key in _cache:
+            logger.info(f"Using stale cache for {symbol} due to all sources failed")
+            return _cache[cache_key]["data"]
+        
+        raise Exception(f"All data sources failed for {symbol}: {e}")
 
 
 # ─── Historical Data ────────────────────────────────────────
 
+def get_historical_data_from_akshare(symbol: str, period: str = "3mo") -> Dict[str, Any]:
+    """Get historical data from akshare as fallback."""
+    if not AKSHARE_AVAILABLE:
+        raise ImportError("akshare not available")
+    
+    try:
+        # 使用 stock_us_daily 接口 - 更稳定
+        df = ak.stock_us_daily(symbol=symbol, adjust='qfq')
+        
+        if df is None or df.empty:
+            raise ValueError(f"No historical data for {symbol}")
+        
+        # 根据period筛选数据
+        period_days = {
+            "1mo": 30,
+            "3mo": 90,
+            "6mo": 180,
+            "1y": 365,
+            "2y": 730,
+        }
+        days = period_days.get(period, 90)
+        
+        # 只返回最近的数据点
+        df = df.tail(min(days, 60))
+        
+        data = []
+        for idx, row in df.iterrows():
+            data.append({
+                "date": str(row.get('date', '')),
+                "open": float(row.get('open', 0)),
+                "high": float(row.get('high', 0)),
+                "low": float(row.get('low', 0)),
+                "close": float(row.get('close', 0)),
+                "volume": int(row.get('volume', 0))
+            })
+        
+        result = {
+            "symbol": symbol.upper(),
+            "period": period,
+            "interval": "1d",
+            "dataPoints": len(data),
+            "data": data,
+            "source": "akshare"
+        }
+        
+        logger.info(f"[Akshare] Got historical data for {symbol}: {len(data)} points")
+        return result
+        
+    except Exception as e:
+        logger.error(f"[Akshare] Historical data failed for {symbol}: {e}")
+        raise e
+
+
 def get_historical_data(symbol: str, period: str = "3mo", interval: str = "1d") -> Dict[str, Any]:
-    """Get historical OHLCV data."""
+    """Get historical OHLCV data.
+    
+    Multi-source fallback: yfinance -> akshare
+    """
     cache_key = f"hist_{symbol}_{period}_{interval}"
     cached = _get_cached(cache_key)
     if cached:
         return cached
 
-    ticker = yf.Ticker(symbol)
-    df = ticker.history(period=period, interval=interval)
+    # ─── Source 1: yfinance ─────────────────────────────
+    try:
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period=period, interval=interval)
 
-    if df.empty:
-        return {"symbol": symbol, "period": period, "dataPoints": 0, "data": []}
+        if df.empty:
+            raise ValueError("yfinance returned empty data")
 
-    # Only return last 60 data points to keep API response manageable
-    df = df.tail(60)
+        # Only return last 60 data points to keep API response manageable
+        df = df.tail(60)
 
-    data = []
-    for idx, row in df.iterrows():
-        data.append({
-            "date": idx.strftime("%Y-%m-%d"),
-            "open": round(row["Open"], 2),
-            "high": round(row["High"], 2),
-            "low": round(row["Low"], 2),
-            "close": round(row["Close"], 2),
-            "volume": int(row["Volume"])
-        })
+        data = []
+        for idx, row in df.iterrows():
+            data.append({
+                "date": idx.strftime("%Y-%m-%d"),
+                "open": round(row["Open"], 2),
+                "high": round(row["High"], 2),
+                "low": round(row["Low"], 2),
+                "close": round(row["Close"], 2),
+                "volume": int(row["Volume"])
+            })
 
-    result = {
-        "symbol": symbol.upper(),
-        "period": period,
-        "interval": interval,
-        "dataPoints": len(data),
-        "data": data
-    }
+        result = {
+            "symbol": symbol.upper(),
+            "period": period,
+            "interval": interval,
+            "dataPoints": len(data),
+            "data": data,
+            "source": "yfinance"
+        }
 
-    _set_cached(cache_key, result)
-    return result
+        _set_cached(cache_key, result)
+        return result
+        
+    except Exception as e:
+        logger.warning(f"[yfinance] Historical data failed for {symbol}: {e}, trying akshare...")
+    
+    # ─── Source 2: akshare ─────────────────────────────
+    if AKSHARE_AVAILABLE:
+        try:
+            result = get_historical_data_from_akshare(symbol, period)
+            _set_cached(cache_key, result)
+            return result
+        except Exception as e:
+            logger.error(f"[akshare] Historical data also failed for {symbol}: {e}")
+    
+    # All sources failed
+    return {"symbol": symbol, "period": period, "dataPoints": 0, "data": [], "error": "All sources failed"}
 
 
 # ─── Technical Indicators ───────────────────────────────────
 
 def get_technical_indicators(symbol: str, period: str = "1y") -> Dict[str, Any]:
-    """Calculate technical indicators from historical data."""
+    """Calculate technical indicators from historical data.
+    
+    Uses get_historical_data which has multi-source fallback.
+    """
     cache_key = f"tech_{symbol}_{period}"
     cached = _get_cached(cache_key)
     if cached:
         return cached
 
-    ticker = yf.Ticker(symbol)
-    df = ticker.history(period=period)
-
-    if df.empty or len(df) < 26:
+    # Get historical data (with fallback support)
+    hist_data = get_historical_data(symbol, period=period)
+    
+    if hist_data.get("dataPoints", 0) < 26:
         return {"symbol": symbol, "error": "Insufficient data for technical analysis"}
+    
+    # Convert to DataFrame for technical analysis
+    data_list = hist_data.get("data", [])
+    if not data_list:
+        return {"symbol": symbol, "error": "No historical data available"}
+    
+    df = pd.DataFrame(data_list)
+    df['close'] = pd.to_numeric(df['close'], errors='coerce')
+    closes = df['close']
 
-    closes = df["Close"]
+    if len(closes) < 26:
+        return {"symbol": symbol, "error": "Insufficient data for technical analysis"}
 
     # SMA
     sma20 = round(closes.rolling(20).mean().iloc[-1], 2) if len(closes) >= 20 else None
@@ -285,7 +461,7 @@ def get_technical_indicators(symbol: str, period: str = "1y") -> Dict[str, Any]:
         "trend": "bullish" if current_price > (sma50 or 0) else "bearish",
         "rsi_signal": "超买" if rsi > 70 else ("超卖" if rsi < 30 else "中性"),
         "timestamp": datetime.now().isoformat(),
-        "source": "yfinance"
+        "source": hist_data.get("source", "unknown")
     }
 
     _set_cached(cache_key, result)

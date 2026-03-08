@@ -66,10 +66,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/ai-stock-analysis.git"
+    "url": "https://github.com/mChenys/StockAnalysis.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/ai-stock-analysis/issues"
+    "url": "https://github.com/mChenys/StockAnalysis/issues"
   },
-  "homepage": "https://github.com/yourusername/ai-stock-analysis#readme"
+  "homepage": "https://github.com/mChenys/StockAnalysis#readme"
 }

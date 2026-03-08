@@ -1,5 +1,6 @@
 agno
 yfinance
+akshare
 duckduckgo-search
 fastapi
 uvicorn
