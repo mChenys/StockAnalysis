@@ -531,6 +531,84 @@ class SanitizedOpenAIChat(OpenAIChat):
             raise ModelProviderError(message=str(e), model_name=self.name, model_id=self.id) from e
 
 
+# ─── Custom Stock Data Tools (with fallback) ─────────────────
+
+def get_stock_price_with_fallback(symbol: str) -> str:
+    """获取股票当前价格，支持多数据源降级策略 (yfinance -> akshare -> Yahoo HTTP API)"""
+    try:
+        # Import from stock_data module
+        from stock_data import get_stock_price
+        result = get_stock_price(symbol)
+        if result.get("currentPrice"):
+            return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        logger.warning(f"stock_data.get_stock_price failed for {symbol}: {e}")
+    
+    # Fallback to yfinance directly
+    try:
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        if info and "regularMarketPrice" in info:
+            return json.dumps({
+                "symbol": symbol.upper(),
+                "currentPrice": info.get("regularMarketPrice", 0),
+                "previousClose": info.get("regularMarketPreviousClose", 0),
+                "changePercent": info.get("regularMarketChangePercent", 0),
+                "volume": info.get("regularMarketVolume", 0),
+                "marketCap": info.get("marketCap", 0),
+                "name": info.get("longName", symbol),
+                "sector": info.get("sector", "N/A"),
+                "industry": info.get("industry", "N/A"),
+                "source": "yfinance"
+            }, ensure_ascii=False)
+    except Exception as e:
+        logger.warning(f"yfinance direct failed for {symbol}: {e}")
+    
+    # Final fallback to Sina
+    try:
+        result = get_sina_fallback(symbol)
+        if result.get("success"):
+            return json.dumps(result["data"], ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"All data sources failed for {symbol}: {e}")
+    
+    return f"Unable to fetch price data for {symbol}. All data sources exhausted."
+
+
+def get_stock_fundamentals_with_fallback(symbol: str) -> str:
+    """获取股票基本面数据，支持多数据源降级策略"""
+    try:
+        from stock_data import get_stock_price
+        # Try to get fundamentals from yfinance first
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        
+        fundamentals = {
+            "symbol": symbol.upper(),
+            "name": info.get("longName", symbol),
+            "sector": info.get("sector", "N/A"),
+            "industry": info.get("industry", "N/A"),
+            "marketCap": info.get("marketCap", 0),
+            "pe_ratio": info.get("trailingPE", info.get("forwardPE", None)),
+            "forward_pe": info.get("forwardPE", None),
+            "dividend_yield": info.get("dividendYield", None),
+            "fifty_two_week_high": info.get("fiftyTwoWeekHigh", None),
+            "fifty_two_week_low": info.get("fiftyTwoWeekLow", None),
+            "revenue_growth": info.get("revenueGrowth", None),
+            "profit_margins": info.get("profitMargins", None),
+            "source": "yfinance"
+        }
+        return json.dumps(fundamentals, ensure_ascii=False)
+    except Exception as e:
+        logger.warning(f"yfinance fundamentals failed for {symbol}: {e}")
+        # Return basic info with error message
+        return json.dumps({
+            "symbol": symbol.upper(),
+            "error": f"Failed to fetch fundamentals: {str(e)}",
+            "note": "Using limited data due to rate limiting"
+        }, ensure_ascii=False)
+
+
 # ─── Agent Factory ──────────────────────────────────────────
 
 def get_computed_technical_indicators(symbol: str) -> str:
@@ -597,15 +675,9 @@ def create_agent(config: ModelConfig) -> Agent:
         name="Stock Analysis Agent",
         model=model,
         tools=[
-            YFinanceTools(
-                enable_stock_price=True,
-                enable_analyst_recommendations=True,
-                enable_stock_fundamentals=True,
-                enable_company_news=True,
-                enable_technical_indicators=False,  # Replaced by custom function
-                enable_historical_prices=True,
-                enable_company_info=True,
-            ),
+            # Use custom fallback-aware tools instead of YFinanceTools directly
+            get_stock_price_with_fallback,
+            get_stock_fundamentals_with_fallback,
             get_computed_technical_indicators,
             DuckDuckGoTools(),
         ],
@@ -619,13 +691,21 @@ def create_agent(config: ModelConfig) -> Agent:
             "- `8` 或 `4` 开头：加上 `.BJ`",
             "非纯6位数字的美股维持原样组合。不加后缀工具将报错！",
             "",
+            "## 可用工具说明",
+            "你有以下工具可以调用（按优先级排序）：",
+            "1. **get_stock_price_with_fallback(symbol)** - 获取股票价格，支持多数据源备用（yfinance/akshare/Yahoo HTTP API）",
+            "2. **get_stock_fundamentals_with_fallback(symbol)** - 获取基本面数据（PE、市值等）",
+            "3. **get_computed_technical_indicators(symbol)** - 获取技术指标（RSI、MACD、SMA50/200）",
+            "4. **DuckDuckGoTools** - 搜索最新新闻和分析师评级",
+            "",
             "## 分析流程：数据收集（硬性规定）",
             "在开始写报告前，你【必须】调用你拥有的股票数据工具。请必须调用且至少调用以下信息源：",
-            "1. 当前价格工具",
-            "2. 基本面数据工具",
-            "3. 技术指标工具",
-            "4. 分析师预期工具",
+            "1. get_stock_price_with_fallback - 获取当前价格",
+            "2. get_stock_fundamentals_with_fallback - 获取基本面数据",
+            "3. get_computed_technical_indicators - 获取技术指标",
+            "4. DuckDuckGoTools - 搜索分析师预期和新闻",
             "**绝对禁止编造任何 PE、RSI、均线等金融数据！**",
+            "如果某个工具返回错误或数据不可用，请明确说明数据来源受限，而不是编造数据。",
             "",
             "## 回答结构（对每一个指标必须进行『解读』）",
             "请按以下 Markdown 结构生成报告，**不要单纯罗列数据，你的价值在于解读！**",
